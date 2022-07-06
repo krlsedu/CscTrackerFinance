@@ -6,9 +6,9 @@ networks:
 
 services:
   csctracker:
-    container_name: datasource
-    hostname: datasource
-    image: krlsedu/csctracker-datasource
+    container_name: csc-tracker-finance
+    hostname: csc-tracker-finance
+    image: krlsedu/csctracker-finance
     restart: always
     networks:
       - backend
