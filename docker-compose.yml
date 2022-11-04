@@ -5,12 +5,10 @@ networks:
     external: true
 
 services:
-  csctracker:
-    container_name: csc-tracker-finance
-    hostname: csc-tracker-finance
+  finance:
+    container_name: finance
+    hostname: finance
     image: krlsedu/csctracker-finance
     restart: always
     networks:
       - backend
-    ports:
-      - "5050:5000"

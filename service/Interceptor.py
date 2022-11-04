@@ -23,6 +23,10 @@ class Interceptor:
         execution_time = int(time.time() * 1000 - start)
         clazz = className[className.rfind('.') + 1:className.__len__()]
         metrics = {'clazz': clazz, 'method': methodName, 'executionTime': execution_time,
-                   'appName': 'CscTrackerDataSource', 'fullClassName': className}
+                   'appName': 'CscTrackerFinance', 'fullClassName': className}
 
         response = requests.post('http://metrics-service:5000/metric', json=metrics)
+        if response.status_code != 200:
+            print(metrics, response.status_code)
+            print(f'Error sending metrics: {response.text}')
+        pass
