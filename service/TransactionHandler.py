@@ -46,49 +46,45 @@ class TransactionHandler(Interceptor):
                 transaction['text'] = test_str
                 self.save_transaction(transaction)
 
-
-def get_type(self, text, status):
-    regex = r"(.*)(compra|Compra|Recebemos.*pagamento)(.*)$"
-    if re.match(regex, text):
-        regex = r"(.*)(não.*autorizada)(.*)$"
-        if re.match(regex, status):
-            return 'unknown'
-        regex = r"(.*)(estornada|cancelada)(.*)$"
-        if re.match(regex, status):
-            return "income"
-        return "outcome"
-    else:
-        regex = r"(.*)(recebeu.*Pix|Recebemos.*PIX|Recebemos.*transferência|recebeu.*transferência)(.*)$"
+    def get_type(self, text, status):
+        regex = r"(.*)(compra|Compra|Recebemos.*pagamento)(.*)$"
         if re.match(regex, text):
-            return "income"
-    return "unknown"
+            regex = r"(.*)(não.*autorizada)(.*)$"
+            if re.match(regex, status):
+                return 'unknown'
+            regex = r"(.*)(estornada|cancelada)(.*)$"
+            if re.match(regex, status):
+                return "income"
+            return "outcome"
+        else:
+            regex = r"(.*)(recebeu.*Pix|Recebemos.*PIX|Recebemos.*transferência|recebeu.*transferência)(.*)$"
+            if re.match(regex, text):
+                return "income"
+        return "unknown"
 
+    def get_value(self, text):
+        regex = r"((([1-9]\d{0,2}(.\d{3})*)|(([1-9]\d*)?\d))(\,\d\d))$"
+        matches = re.finditer(regex, text)
 
-def get_value(self, text):
-    regex = r"((([1-9]\d{0,2}(.\d{3})*)|(([1-9]\d*)?\d))(\,\d\d))$"
-    matches = re.finditer(regex, text)
+        for matchNum, match in enumerate(matches, start=1):
+            value = match.group(1)
+            return float(value.strip().replace('.', '').replace(',', '.'))
+        return float(0)
 
-    for matchNum, match in enumerate(matches, start=1):
-        value = match.group(1)
-        return float(value.strip().replace('.', '').replace(',', '.'))
-    return float(0)
-
-
-def get_name(self, text):
-    regex = r"(.*)(em )(.*)(foi)(.*)$"
-    if re.match(regex, text):
-        return re.match(regex, text).group(3).strip()
-    else:
-        regex = r"(.*)(em )(.*)(\.)$"
+    def get_name(self, text):
+        regex = r"(.*)(em )(.*)(foi)(.*)$"
         if re.match(regex, text):
             return re.match(regex, text).group(3).strip()
         else:
-            regex = r"(.*)(de )(.*)(\.)$"
+            regex = r"(.*)(em )(.*)(\.)$"
             if re.match(regex, text):
                 return re.match(regex, text).group(3).strip()
-    return "unknown"
+            else:
+                regex = r"(.*)(de )(.*)(\.)$"
+                if re.match(regex, text):
+                    return re.match(regex, text).group(3).strip()
+        return "unknown"
 
-
-def save_transaction(self, transaction):
-    response = requests.post("http://repository:5000/transactions", headers=request.headers, json=transaction)
-    return response.json(), response.status_code
+    def save_transaction(self, transaction):
+        response = requests.post("http://repository:5000/transactions", headers=request.headers, json=transaction)
+        return response.json(), response.status_code
