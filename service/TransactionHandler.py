@@ -1,3 +1,5 @@
+import decimal
+import json
 import re
 
 import requests
@@ -6,18 +8,25 @@ from flask import request
 from service.Interceptor import Interceptor
 
 
+class Encoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, decimal.Decimal):
+            return float(obj)
+
+
 class TransactionHandler(Interceptor):
     def __init__(self):
         pass
 
     def generate_transaction(self, json_info):
-        info_ = json_info['text']['textInfo']
+        text_ = json.dumps(json_info['text'], cls=Encoder, ensure_ascii=False)
+        info_ = text_['textInfo']
         if info_ == '':
-            info_ = json_info['text']['textBig']
+            info_ = text_['textBig']
             if info_ == '':
-                info_ = json_info['text']['text']
+                info_ = text_['text']
                 if info_ == '':
-                    info_ = json_info['text']['textSummary']
+                    info_ = text_['textSummary']
         self.transaction(info_, json_info)
 
     def transaction(self, test_str, json_info):
