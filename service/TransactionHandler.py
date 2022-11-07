@@ -11,6 +11,7 @@ class TransactionHandler(Interceptor):
         pass
 
     def generate_transaction(self, json_info):
+        json_info = json_info['text']
         info_ = json_info['textInfo']
         if info_ == '':
             info_ = json_info['textBig']
