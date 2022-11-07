@@ -11,14 +11,13 @@ class TransactionHandler(Interceptor):
         pass
 
     def generate_transaction(self, json_info):
-        json_info = json_info['text']
-        info_ = json_info['textInfo']
+        info_ = json_info['text']['textInfo']
         if info_ == '':
-            info_ = json_info['textBig']
+            info_ = json_info['text']['textBig']
             if info_ == '':
-                info_ = json_info['text']
+                info_ = json_info['text']['text']
                 if info_ == '':
-                    info_ = json_info['textSummary']
+                    info_ = json_info['text']['textSummary']
         self.transaction(info_, json_info)
 
     def transaction(self, test_str, json_info):
