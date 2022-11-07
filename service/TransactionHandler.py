@@ -1,3 +1,4 @@
+from datetime import datetime
 import decimal
 import json
 import re
@@ -19,7 +20,7 @@ class TransactionHandler(Interceptor):
         pass
 
     def generate_transaction(self, json_info):
-        text_ = json.dumps(json_info['text'], cls=Encoder, ensure_ascii=False)
+        text_ = json.loads(json_info['text'])
         info_ = text_['textInfo']
         if info_ == '':
             info_ = text_['textBig']
@@ -27,7 +28,7 @@ class TransactionHandler(Interceptor):
                 info_ = text_['text']
                 if info_ == '':
                     info_ = text_['textSummary']
-        self.transaction(info_, json_info)
+        self.transaction(info_, text_)
 
     def transaction(self, test_str, json_info):
         regex = r"(.*) ((.*\$)( | )(([1-9]\d{0,2}(.\d{3})*)|(([1-9]\d*)?\d))(\,\d\d)?)(.*)$"
@@ -47,12 +48,16 @@ class TransactionHandler(Interceptor):
                 status = match.group(11)
                 package = json_info['packageName']
                 app_name = json_info['appName']
+                f = int(json_info['postTime'])
                 transaction['type'] = self.get_type(type, status)
                 transaction['value'] = self.get_value(value)
                 transaction['name'] = self.get_name(status)
-                transaction['packageName'] = package
-                transaction['appName'] = app_name
+                transaction['package_name'] = package
+                transaction['app_name'] = app_name
                 transaction['text'] = test_str
+                fromtimestamp = datetime.fromtimestamp(f / 1000)
+                transaction['date'] = fromtimestamp \
+                    .strftime('%Y-%m-%d %H:%M:%S')
                 self.save_transaction(transaction)
 
     def get_type(self, text, status):
@@ -95,5 +100,7 @@ class TransactionHandler(Interceptor):
         return "unknown"
 
     def save_transaction(self, transaction):
-        response = requests.post("http://repository:5000/transactions", headers=request.headers, json=transaction)
+        response = requests.post("http://127.0.0.1:5015/transactions", headers=request.headers, json=transaction)
+        print(response)
+        print(response.json())
         return response.json(), response.status_code
