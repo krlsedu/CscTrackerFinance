@@ -22,6 +22,7 @@ def transaction():
             'status': 'error',
             'error': str(e)
         }
+        print(e)
         return message, 400, {'Content-Type': 'application/json'}
 
 
