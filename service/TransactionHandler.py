@@ -100,7 +100,7 @@ class TransactionHandler(Interceptor):
         return "unknown"
 
     def save_transaction(self, transaction):
-        response = requests.post("http://repository:5000/transactions", headers=request.headers, json=transaction)
+        response = requests.post("http://bff:8080/repository/transactions", headers=request.headers, json=transaction)
         print(response)
         print(response.json())
         return response.json(), response.status_code
