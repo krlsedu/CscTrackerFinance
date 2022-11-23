@@ -20,15 +20,18 @@ class TransactionHandler(Interceptor):
         pass
 
     def generate_transaction(self, json_info):
-        text_ = json.loads(json_info['text'])
-        info_ = text_['textInfo']
-        if info_ == '':
-            info_ = text_['textBig']
+        try:
+            text_ = json.loads(json_info['text'])
+            info_ = text_['textInfo']
             if info_ == '':
-                info_ = text_['text']
+                info_ = text_['textBig']
                 if info_ == '':
-                    info_ = text_['textSummary']
-        self.transaction(info_, text_)
+                    info_ = text_['text']
+                    if info_ == '':
+                        info_ = text_['textSummary']
+            self.transaction(info_, text_)
+        except Exception as e:
+            print(e)
 
     def transaction(self, test_str, json_info):
         regex = r"(.*) ((.*\$)( | )(([1-9]\d{0,2}(.\d{3})*)|(([1-9]\d*)?\d))(\,\d\d)?)(.*)$"
