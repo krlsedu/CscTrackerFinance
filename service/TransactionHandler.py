@@ -34,6 +34,7 @@ class TransactionHandler(Interceptor):
             print(e)
 
     def transaction(self, test_str, json_info):
+        test_str = test_str.replace('  ', ' ')
         regex = r"(.*) ((.*\$)( | )(([1-9]\d{0,2}(.\d{3})*)|(([1-9]\d*)?\d))(\,\d\d)?)(.*)$"
         matches = re.finditer(regex, test_str)
         re_match = re.match(regex, test_str)
