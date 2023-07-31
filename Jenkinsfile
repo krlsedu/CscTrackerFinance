@@ -44,6 +44,7 @@ pipeline {
                 sh 'docker build -t krlsedu/csctracker-finance:' + env.VERSION_NAME + ' -t krlsedu/csctracker-finance:latest  .'
             }
         }
+
         stage('Docker Push') {
             agent any
             when {
@@ -55,6 +56,16 @@ pipeline {
                     sh 'docker push krlsedu/csctracker-finance:' + env.VERSION_NAME
                     sh 'docker push krlsedu/csctracker-finance'
                 }
+            }
+        }
+
+        stage('Service update'){
+            agent any
+            when {
+                expression { env.RELEASE_COMMIT != '0' }
+            }
+            steps{
+                sh 'docker service update --image krlsedu/csctracker-finance:' + env.VERSION_NAME + ' csctracker_services_finance'
             }
         }
     }
