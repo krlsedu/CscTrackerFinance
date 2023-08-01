@@ -59,10 +59,11 @@ pipeline {
             }
         }
 
-        stage('Service update'){
+        stage('Service update') {
             agent any
             when {
                 expression { env.RELEASE_COMMIT != '0' }
+                branch 'master'
             }
             steps{
                 sh 'docker service update --image krlsedu/csctracker-finance:' + env.VERSION_NAME + ' csctracker_services_finance'
