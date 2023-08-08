@@ -29,6 +29,10 @@ class TransactionHandler(Interceptor):
                     info_ = text_['text']
                     if info_ == '':
                         info_ = text_['textSummary']
+
+            title = text_['title']
+            if title.find('NuPay') != -1:
+                info_ = title + ' ' + info_
             self.transaction(info_, text_)
         except Exception as e:
             print(e)
