@@ -60,6 +60,7 @@ pipeline {
                         script {
                             echo "Creating a new tag"
                             sh 'git pull https://krlsedu:${password}@github.com/krlsedu/' + env.REPOSITORY_NAME + '.git HEAD:' + env.BRANCH_NAME
+                            sh 'echo ' + VERSION + ' > version.txt'
                             if (env.BRANCH_NAME == 'master') {
                                 sh "git add ."
                                 sh "git config --global user.email 'krlsedu@gmail.com'"
