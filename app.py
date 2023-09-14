@@ -11,7 +11,7 @@ app = Flask(__name__)
 transaction_handler = TransactionHandler()
 
 # group by endpoint rather than path
-metrics = PrometheusMetrics(app, group_by='endpoint')
+metrics = PrometheusMetrics(app, group_by='endpoint', default_labels={'application': 'CscTrackerFinance'})
 
 
 @app.route('/transaction', methods=['POST'])

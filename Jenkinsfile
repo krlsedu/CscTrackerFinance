@@ -117,8 +117,20 @@ pipeline {
             steps {
                 script {
                     if (env.BRANCH_NAME == 'master') {
+                        withCredentials([usernamePassword(credentialsId: 'one_click_host', passwordVariable: 'password', usernameVariable: 'user')]) {
+                            script {
+                                echo "Update remote"
+                                def remote = [:]
+                                remote.name = 'Hostinger'
+                                remote.host = env.ONE_CLICK_HOST_IP
+                                remote.user = env.user
+                                remote.port = 22
+                                remote.password = env.password
+                                remote.allowAnyHosts = true
+                                sshCommand remote: remote, command: 'docker service update --image krlsedu/' + env.IMAGE_NAME + ':' + env.VERSION_NAME + ' ' + env.SERVICE_NAME
+                            }
+                        }
                         withCredentials([string(credentialsId: 'csctracker_token', variable: 'token_csctracker')]) {
-                            sh 'docker service update --image krlsedu/' + env.IMAGE_NAME + ':' + env.VERSION_NAME + ' ' + env.SERVICE_NAME
                             httpRequest acceptType: 'APPLICATION_JSON',
                                     contentType: 'APPLICATION_JSON',
                                     httpMode: 'POST', quiet: true,
