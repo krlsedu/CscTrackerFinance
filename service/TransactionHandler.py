@@ -59,7 +59,11 @@ class TransactionHandler(Interceptor):
                 f = int(json_info['postTime'])
                 transaction['type'] = self.get_type(type, status)
                 transaction['value'] = self.get_value(value)
-                transaction['name'] = self.get_name(status)
+                try:
+                    transaction['name'] = self.get_name(status).replace(' com cartão adicional de SUELEN', '')
+                except:
+                    transaction['name'] = self.get_name(status)
+
                 transaction['package_name'] = package
                 transaction['app_name'] = app_name
                 transaction['text'] = test_str
