@@ -1,12 +1,11 @@
-from datetime import datetime
 import decimal
 import json
+import logging
 import re
+from datetime import datetime
 
-import requests
-from flask import request
-
-from service.Interceptor import Interceptor
+from csctracker_py_core.repository.http_repository import HttpRepository
+from csctracker_py_core.repository.remote_repository import RemoteRepository
 
 
 class Encoder(json.JSONEncoder):
@@ -15,8 +14,11 @@ class Encoder(json.JSONEncoder):
             return float(obj)
 
 
-class TransactionHandler(Interceptor):
-    def __init__(self):
+class TransactionHandler:
+    def __init__(self, remote_repository: RemoteRepository, http_repository: HttpRepository):
+        self.logger = logging.getLogger()
+        self.remote_repository = remote_repository
+        self.http_repository = http_repository
         pass
 
     def generate_transaction(self, json_info):
@@ -35,7 +37,7 @@ class TransactionHandler(Interceptor):
                 info_ = title + ' ' + info_
             self.transaction(info_, text_)
         except Exception as e:
-            print(e)
+            self.logger.exception(e)
 
     def transaction(self, test_str, json_info):
         test_str = test_str.replace('  ', ' ')
