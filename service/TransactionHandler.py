@@ -115,9 +115,15 @@ class TransactionHandler:
         return "unknown"
 
     def save_transaction(self, transaction):
-        response = self.remote_repository.insert("transactions",
-                                                 data=transaction,
-                                                 headers=self.http_repository.get_headers())
-        self.logger.debug(response)
-        self.logger.info(response.json())
-        return response.json(), response.status_code
+        try:
+            response = self.remote_repository.insert("transactions",
+                                                     data=transaction,
+                                                     headers=self.http_repository.get_headers())
+            return response, 201
+        except Exception as e:
+            self.logger.exception(e)
+            return {
+                'text': 'transaction not saved',
+                'status': 'error',
+                'error': str(e)
+            }, 400
