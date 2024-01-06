@@ -37,6 +37,7 @@ class TransactionHandler:
                 info_ = title + ' ' + info_
             self.transaction(info_, text_)
         except Exception as e:
+            self.logger.info(json_info)
             self.logger.exception(e)
 
     def transaction(self, test_str, json_info):
