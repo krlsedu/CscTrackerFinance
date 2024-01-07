@@ -6,6 +6,7 @@ from datetime import datetime
 
 from csctracker_py_core.repository.http_repository import HttpRepository
 from csctracker_py_core.repository.remote_repository import RemoteRepository
+from csctracker_py_core.utils.utils import Utils
 
 
 class Encoder(json.JSONEncoder):
@@ -70,6 +71,10 @@ class TransactionHandler:
                 transaction['package_name'] = package
                 transaction['app_name'] = app_name
                 transaction['text'] = test_str
+                try:
+                    transaction['key'] = json_info['key']
+                except:
+                    pass
                 fromtimestamp = datetime.fromtimestamp(f / 1000)
                 transaction['date'] = fromtimestamp \
                     .strftime('%Y-%m-%d %H:%M:%S')
@@ -116,6 +121,17 @@ class TransactionHandler:
 
     def save_transaction(self, transaction):
         try:
+            try:
+                if self.remote_repository.exist_by_key("transactions",
+                                                       "key",
+                                                       transaction,
+                                                       self.http_repository.get_headers()):
+                    self.logger.info(f"Transaction already saved-> {transaction['key']} -> {transaction}")
+                    Utils.inform_to_client(transaction, "urgent",
+                                           self.http_repository.get_headers(),
+                                           f"Transaction already saved-> {transaction['key']}")
+            except Exception as e:
+                self.logger.exception(e)
             response = self.remote_repository.insert("transactions",
                                                      data=transaction,
                                                      headers=self.http_repository.get_headers())
