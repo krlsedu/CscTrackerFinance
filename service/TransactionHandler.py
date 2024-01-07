@@ -122,10 +122,12 @@ class TransactionHandler:
     def save_transaction(self, transaction):
         try:
             try:
-                if self.remote_repository.exist_by_key("transactions",
-                                                       ["key"],
-                                                       data=transaction,
-                                                       headers=self.http_repository.get_headers()):
+                exists = self.remote_repository.get_objects("transactions",
+                                                                keys=["key"],
+                                                                data=transaction,
+                                                                headers=self.http_repository.get_headers())
+                self.logger.info(exists)
+                if exists.__len__() > 0:
                     self.logger.info(f"Transaction already saved-> {transaction['key']} -> {transaction}")
                     Utils.inform_to_client(transaction, "urgent",
                                            self.http_repository.get_headers(),
