@@ -123,7 +123,7 @@ class TransactionHandler:
         try:
             try:
                 if self.remote_repository.exist_by_key("transactions",
-                                                       "key",
+                                                       ["key"],
                                                        data=transaction,
                                                        headers=self.http_repository.get_headers()):
                     self.logger.info(f"Transaction already saved-> {transaction['key']} -> {transaction}")
