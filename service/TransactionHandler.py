@@ -135,6 +135,7 @@ class TransactionHandler:
                     Utils.inform_to_client(transaction, "urgent",
                                            self.http_repository.get_headers(),
                                            f"Transaction already saved-> {transaction['key']}")
+                    transaction['category'] = 'Ignored'
             except Exception as e:
                 self.logger.exception(e)
             response = self.remote_repository.insert("transactions",
