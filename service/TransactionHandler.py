@@ -72,7 +72,10 @@ class TransactionHandler:
                 transaction['app_name'] = app_name
                 transaction['text'] = test_str
                 try:
-                    transaction['key'] = json_info['key']
+                    key_ = json_info['key']
+                    ##replace all special characters with _
+                    key_ = re.sub('[^A-Za-z0-9]+', '_', key_)
+                    transaction['key'] = key_
                 except:
                     pass
                 fromtimestamp = datetime.fromtimestamp(f / 1000)
