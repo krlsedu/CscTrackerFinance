@@ -134,7 +134,8 @@ class TransactionHandler:
                     self.logger.info(f"Transaction already saved-> {transaction['key']} -> {transaction}")
                     Utils.inform_to_client(transaction, "urgent",
                                            self.http_repository.get_headers(),
-                                           f"Transaction already saved-> {transaction['key']}")
+                                           f"Transaction already saved-> {transaction['key']} "
+                                           f"- {transaction['value']} - {transaction['date']}")
                     transaction['category'] = 'Ignored'
             except Exception as e:
                 self.logger.exception(e)
