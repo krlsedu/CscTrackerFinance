@@ -126,7 +126,7 @@ class TransactionHandler:
         try:
             try:
                 exists = self.remote_repository.get_objects("transactions",
-                                                                keys=["key"],
+                                                                keys=["key", "value", "date"],
                                                                 data=transaction,
                                                                 headers=self.http_repository.get_headers())
                 self.logger.info(exists)
