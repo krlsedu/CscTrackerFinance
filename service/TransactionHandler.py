@@ -7,6 +7,7 @@ from datetime import datetime
 from csctracker_py_core.repository.http_repository import HttpRepository
 from csctracker_py_core.repository.remote_repository import RemoteRepository
 from csctracker_py_core.utils.utils import Utils
+from dateutil.relativedelta import relativedelta
 
 
 class Encoder(json.JSONEncoder):
@@ -41,17 +42,17 @@ class TransactionHandler:
             self.logger.info(json_info)
             self.logger.exception(e)
 
-    def transaction(self, test_str, json_info):
-        test_str = test_str.replace('  ', ' ')
+    def transaction(self, text_str, json_info):
+        text_str = text_str.replace('  ', ' ')
         regex = r"(.*) ((.*\$)( | )(([1-9]\d{0,2}(.\d{3})*)|(([1-9]\d*)?\d))(\,\d\d)?)(.*)$"
-        matches = re.finditer(regex, test_str)
-        re_match = re.match(regex, test_str)
+        matches = re.finditer(regex, text_str)
+        re_match = re.match(regex, text_str)
         if not re_match:
             regex = r"(.*) ((([1-9]\d{0,2}(.\d{3})*)|(([1-9]\d*)?\d))(\,\d\d)?)(.*)$"
-            re_match = re.match(regex, test_str)
+            re_match = re.match(regex, text_str)
             if not re_match:
                 regex = r"(.*) ((.*\$)( | |  )(([1-9]\d{0,2}(.\d{3})*)|(([1-9]\d*)?\d))(\,\d\d)?)(.*)$"
-                re_match = re.match(regex, test_str)
+                re_match = re.match(regex, text_str)
         if re_match:
             for matchNum, match in enumerate(matches, start=1):
                 transaction = {}
@@ -70,7 +71,7 @@ class TransactionHandler:
 
                 transaction['package_name'] = package
                 transaction['app_name'] = app_name
-                transaction['text'] = test_str
+                transaction['text'] = text_str
                 try:
                     key_ = json_info['key']
                     ##replace all special characters with _
@@ -81,7 +82,20 @@ class TransactionHandler:
                 fromtimestamp = datetime.fromtimestamp(f / 1000)
                 transaction['date'] = fromtimestamp \
                     .strftime('%Y-%m-%d %H:%M:%S')
-                self.save_transaction(transaction)
+                installments_ = self.get_installments(text_str)
+                if installments_ > 1:
+                    value = transaction['value'] / installments_
+                    value = round(value, 2)
+                    transaction['value'] = value
+                    for i in range(installments_):
+                        transaction['text'] = text_str + f" {i + 1}/{installments_}"
+                        date_ = transaction['date']
+                        date_ = datetime.strptime(date_, '%Y-%m-%d %H:%M:%S')
+                        date_ += relativedelta(months=+i)
+                        transaction['date'] = date_.strftime('%Y-%m-%d %H:%M:%S')
+                        self.save_transaction(transaction)
+                else:
+                    self.save_transaction(transaction)
 
     def get_type(self, text, status):
         regex = r"(.*)(compra|Compra|Recebemos.*pagamento)(.*)$"
@@ -109,26 +123,44 @@ class TransactionHandler:
         return float(0)
 
     def get_name(self, text):
-        regex = r"(.*)(em )(.*)(foi)(.*)$"
+        regex = r"(em\s)(.*?)(\sfoi|\scom)(.*)$"
         if re.match(regex, text):
             return re.match(regex, text).group(3).strip()
         else:
-            regex = r"(.*)(em )(.*)(\.)$"
-            if re.match(regex, text):
-                return re.match(regex, text).group(3).strip()
+            regex = r"(?:em\s)(.*?)(?:\sàs)(.*)$"
+            match = re.search(regex, text)
+            if match:
+                return match.group(1).strip()
             else:
-                regex = r"(.*)(de )(.*)(\.)$"
+                regex = r"(.*)(em )(.*)( para o cartão)(.*)$"
                 if re.match(regex, text):
                     return re.match(regex, text).group(3).strip()
+                else:
+                    regex = r"(.*)(em )(.*)(\.)$"
+                    if re.match(regex, text):
+                        return re.match(regex, text).group(3).strip()
+                    else:
+                        regex = r"(.*)(de )(.*)(\.)$"
+                        if re.match(regex, text):
+                            return re.match(regex, text).group(3).strip()
         return "unknown"
+
+    def get_installments(self, text):
+        regex = r"\((\d+x)\)"
+        match = re.search(regex, text)
+        if match:
+            number = re.search(r"\d+", match.group(1))
+            return int(number.group()) if number else 1
+        else:
+            return 1
 
     def save_transaction(self, transaction):
         try:
             try:
                 exists = self.remote_repository.get_objects("transactions",
-                                                                keys=["key", "value", "date"],
-                                                                data=transaction,
-                                                                headers=self.http_repository.get_headers())
+                                                            keys=["key", "value", "date"],
+                                                            data=transaction,
+                                                            headers=self.http_repository.get_headers())
                 self.logger.info(exists)
                 if exists.__len__() > 0:
                     self.logger.info(f"Transaction already saved-> {transaction['key']} -> {transaction}")
