@@ -87,10 +87,10 @@ class TransactionHandler:
                     value = transaction['value'] / installments_
                     value = round(value, 2)
                     transaction['value'] = value
+                    date_str_ = transaction['date']
                     for i in range(installments_):
                         transaction['text'] = text_str + f" {i + 1}/{installments_}"
-                        date_ = transaction['date']
-                        date_ = datetime.strptime(date_, '%Y-%m-%d %H:%M:%S')
+                        date_ = datetime.strptime(date_str_, '%Y-%m-%d %H:%M:%S')
                         date_ += relativedelta(months=+i)
                         transaction['date'] = date_.strftime('%Y-%m-%d %H:%M:%S')
                         self.save_transaction(transaction)
