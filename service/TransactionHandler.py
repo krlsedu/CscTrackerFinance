@@ -195,21 +195,22 @@ class TransactionHandler:
     def save_transaction(self, transaction):
         try:
             headers = self.http_repository.get_headers()
-            try:
-                exists = self.remote_repository.get_objects("transactions",
-                                                            keys=["key", "value", "date"],
-                                                            data=transaction,
-                                                            headers=headers)
-                self.logger.info(exists)
-                if exists.__len__() > 0:
-                    self.logger.info(f"Transaction already saved-> {transaction['key']} -> {transaction}")
-                    Utils.inform_to_client(transaction, "urgent",
-                                           headers,
-                                           f"Transaction already saved-> {transaction['key']} "
-                                           f"- {transaction['value']} - {transaction['date']}")
-                    transaction['category'] = 'Ignored'
-            except Exception as e:
-                self.logger.exception(e)
+            if 'id' not in transaction or transaction['id'] is None:
+                try:
+                    exists = self.remote_repository.get_objects("transactions",
+                                                                keys=["key", "value", "date"],
+                                                                data=transaction,
+                                                                headers=headers)
+                    self.logger.info(exists)
+                    if exists.__len__() > 0:
+                        self.logger.info(f"Transaction already saved-> {transaction['key']} -> {transaction}")
+                        Utils.inform_to_client(transaction, "urgent",
+                                               headers,
+                                               f"Transaction already saved-> {transaction['key']} "
+                                               f"- {transaction['value']} - {transaction['date']}")
+                        transaction['category'] = 'Ignored'
+                except Exception as e:
+                    self.logger.exception(e)
             response = self.remote_repository.insert("transactions",
                                                      data=transaction,
                                                      headers=headers)
