@@ -65,7 +65,7 @@ class TransactionHandler:
                 transaction['type'] = self.get_type(type, status)
                 transaction['value'] = self.get_value(value)
                 try:
-                    transaction['name'] = self.get_name(status).replace(' com cartão adicional de SUELEN', '')
+                    transaction['name'] = self.get_name(text_str)
                 except:
                     transaction['name'] = self.get_name(status)
 
@@ -123,18 +123,20 @@ class TransactionHandler:
         return float(0)
 
     def get_name(self, text):
-        regex = r"(em\s)(.*?)(\sfoi|\scom)(.*)$"
-        if re.match(regex, text):
-            return re.match(regex, text).group(3).strip()
+        regex = r"(?:em\s)(.*?)(?:\sàs)(.*)$"
+        match = re.search(regex, text)
+        if match:
+            return match.group(1).strip()
         else:
-            regex = r"(?:em\s)(.*?)(?:\sàs)(.*)$"
+            regex = r"(.*)(em )(.*)( para o cartão)(.*)$"
             match = re.search(regex, text)
             if match:
-                return match.group(1).strip()
+                return match.group(3).strip()
             else:
-                regex = r"(.*)(em )(.*)( para o cartão)(.*)$"
-                if re.match(regex, text):
-                    return re.match(regex, text).group(3).strip()
+                regex = r"(em\s)(.*?)(\scom\s|\sfoi)"
+                match = re.search(regex, text)
+                if match:
+                    return match.group(2).strip()
                 else:
                     regex = r"(.*)(em )(.*)(\.)$"
                     if re.match(regex, text):
