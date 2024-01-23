@@ -191,6 +191,8 @@ class TransactionHandler:
             ):
                 self.split_transaction(installments_, transaction)
             else:
+                if 'id' not in transaction or transaction['id'] is None:
+                    transaction['is_installment'] = 'N'
                 self.save_transaction(transaction)
         return "OK"
 
