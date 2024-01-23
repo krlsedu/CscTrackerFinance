@@ -103,6 +103,8 @@ class TransactionHandler:
                 date_ = datetime.strptime(date_str_, '%Y-%m-%d %H:%M:%S')
             except:
                 date_ = datetime.strptime(date_str_, '%Y-%m-%d')
+            if i > 0 and ('id' in transaction and transaction['id'] is not None):
+                del transaction['id']
             date_ += relativedelta(months=+i)
             transaction['date'] = date_.strftime('%Y-%m-%d')
             self.save_transaction(transaction)
