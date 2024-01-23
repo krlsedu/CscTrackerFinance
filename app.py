@@ -35,7 +35,13 @@ def transactions():
             transactions = [json]
         else:
             transactions = json
-        return transaction_handler.save_transactions(transactions, http_repository.get_headers()), 201, {'Content-Type': 'application/json'}
+        transaction_handler.save_transactions(transactions, http_repository.get_headers())
+
+        message = {
+            'text': 'transaction saved',
+            'status': 'success'
+        }
+        return message, 201, {'Content-Type': 'application/json'}
     except Exception as e:
         message = {
             'text': 'transaction not saved',
