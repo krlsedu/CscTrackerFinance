@@ -2,6 +2,7 @@ import decimal
 import json
 import logging
 import re
+import uuid
 from datetime import datetime
 
 from csctracker_py_core.repository.http_repository import HttpRepository
@@ -74,7 +75,6 @@ class TransactionHandler:
                 transaction['text'] = text_str
                 try:
                     key_ = json_info['key']
-                    ##replace all special characters with _
                     key_ = re.sub('[^A-Za-z0-9]+', '_', key_)
                     transaction['key'] = key_
                 except:
@@ -84,18 +84,28 @@ class TransactionHandler:
                     .strftime('%Y-%m-%d %H:%M:%S')
                 installments_ = self.get_installments(text_str)
                 if installments_ > 1:
-                    value = transaction['value'] / installments_
-                    value = round(value, 2)
-                    transaction['value'] = value
-                    date_str_ = transaction['date']
-                    for i in range(installments_):
-                        transaction['text'] = text_str + f" {i + 1}/{installments_}"
-                        date_ = datetime.strptime(date_str_, '%Y-%m-%d %H:%M:%S')
-                        date_ += relativedelta(months=+i)
-                        transaction['date'] = date_.strftime('%Y-%m-%d %H:%M:%S')
-                        self.save_transaction(transaction)
+                    self.split_transaction(installments_, transaction)
                 else:
+                    transaction['is_installment'] = 'N'
                     self.save_transaction(transaction)
+
+    def split_transaction(self, installments_, transaction):
+        value = transaction['value'] / installments_
+        value = round(value, 2)
+        transaction['value'] = value
+        transaction['is_installment'] = 'S'
+        transaction['installment_id'] = str(uuid.uuid4())
+        date_str_ = transaction['date']
+        text_ = transaction['text']
+        for i in range(installments_):
+            transaction['text'] = text_ + f" {i + 1}/{installments_}"
+            try:
+                date_ = datetime.strptime(date_str_, '%Y-%m-%d %H:%M:%S')
+            except:
+                date_ = datetime.strptime(date_str_, '%Y-%m-%d')
+            date_ += relativedelta(months=+i)
+            transaction['date'] = date_.strftime('%Y-%m-%d')
+            self.save_transaction(transaction)
 
     def get_type(self, text, status):
         regex = r"(.*)(compra|Compra|Recebemos.*pagamento)(.*)$"
@@ -156,18 +166,45 @@ class TransactionHandler:
         else:
             return 1
 
+    def save_transactions(self, transactions, headers):
+        for transaction in transactions:
+            installments_ = self.get_installments(transaction['text'])
+            if installments_ > 1 and transaction['is_installment'] == 'S':
+                filter_ = {
+                    'key': transaction['key'],
+                    'is_installment': 'S',
+                    'installment_id': transaction['installment_id']
+                }
+                transactions_ = self.remote_repository.get_objects("transactions", data=filter_, headers=headers)
+                for transaction_ in transactions_:
+                    transaction_['category'] = transaction['category']
+                    transaction_['name'] = transaction['name']
+                    self.remote_repository.insert("transactions",
+                                                  data=transaction_,
+                                                  headers=headers)
+            elif installments_ > 1 and (
+                    transaction['is_installment'] == 'N'
+                    or 'id' not in transaction
+                    or transaction['id'] is None
+            ):
+                self.split_transaction(installments_, transaction)
+            else:
+                self.save_transaction(transaction)
+        return "OK"
+
     def save_transaction(self, transaction):
         try:
+            headers = self.http_repository.get_headers()
             try:
                 exists = self.remote_repository.get_objects("transactions",
                                                             keys=["key", "value", "date"],
                                                             data=transaction,
-                                                            headers=self.http_repository.get_headers())
+                                                            headers=headers)
                 self.logger.info(exists)
                 if exists.__len__() > 0:
                     self.logger.info(f"Transaction already saved-> {transaction['key']} -> {transaction}")
                     Utils.inform_to_client(transaction, "urgent",
-                                           self.http_repository.get_headers(),
+                                           headers,
                                            f"Transaction already saved-> {transaction['key']} "
                                            f"- {transaction['value']} - {transaction['date']}")
                     transaction['category'] = 'Ignored'
@@ -175,7 +212,7 @@ class TransactionHandler:
                 self.logger.exception(e)
             response = self.remote_repository.insert("transactions",
                                                      data=transaction,
-                                                     headers=self.http_repository.get_headers())
+                                                     headers=headers)
             return response, 201
         except Exception as e:
             self.logger.exception(e)
