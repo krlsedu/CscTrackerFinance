@@ -171,6 +171,8 @@ class TransactionHandler:
     def save_transactions(self, transactions, headers):
         for transaction in transactions:
             installments_ = self.get_installments(transaction['text'])
+            if 'is_installment' not in transaction:
+                transaction['is_installment'] = 'N'
             if installments_ > 1 and transaction['is_installment'] == 'S':
                 filter_ = {
                     'key': transaction['key'],
@@ -201,18 +203,32 @@ class TransactionHandler:
             headers = self.http_repository.get_headers()
             if 'id' not in transaction or transaction['id'] is None:
                 try:
-                    exists = self.remote_repository.get_objects("transactions",
-                                                                keys=["key", "value", "date"],
-                                                                data=transaction,
-                                                                headers=headers)
-                    self.logger.info(exists)
-                    if exists.__len__() > 0:
-                        self.logger.info(f"Transaction already saved-> {transaction['key']} -> {transaction}")
-                        Utils.inform_to_client(transaction, "urgent",
-                                               headers,
-                                               f"Transaction already saved-> {transaction['key']} "
-                                               f"- {transaction['value']} - {transaction['date']}")
-                        transaction['category'] = 'Ignored'
+                    if 'key' in transaction and transaction['key'] is not None and transaction['key'].startswith('ia_extractor_'):
+                        exists = self.remote_repository.get_objects("transactions",
+                                                                    keys=["app_name", "value", "date", "type"],
+                                                                    data=transaction,
+                                                                    headers=headers)
+                        if exists.__len__() == 0:
+                            exists = self.remote_repository.get_objects("transactions",
+                                                                    keys=["key", "value", "date"],
+                                                                    data=transaction,
+                                                                    headers=headers)
+                        if exists.__len__() > 0:
+                            transaction['category'] = 'Ignored'
+                        pass
+                    else:
+                        exists = self.remote_repository.get_objects("transactions",
+                                                                    keys=["key", "value", "date"],
+                                                                    data=transaction,
+                                                                    headers=headers)
+                        self.logger.info(exists)
+                        if exists.__len__() > 0:
+                            self.logger.info(f"Transaction already saved-> {transaction['key']} -> {transaction}")
+                            Utils.inform_to_client(transaction, "urgent",
+                                                   headers,
+                                                   f"Transaction already saved-> {transaction['key']} "
+                                                   f"- {transaction['value']} - {transaction['date']}")
+                            transaction['category'] = 'Ignored'
                 except Exception as e:
                     self.logger.exception(e)
             response = self.remote_repository.insert("transactions",
