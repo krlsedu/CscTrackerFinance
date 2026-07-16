@@ -251,6 +251,7 @@ class TransactionHandler:
                     cashback_transaction.pop('id', None)
                     cashback_transaction['type'] = 'income'
                     cashback_transaction['name'] = 'Nubank'
+                    cashback_transaction['category'] = 'Cashback'
                     
                     original_value = transaction.get('value', 0)
                     cashback_value = round((original_value * num_parcs) * 0.0125, 2)
