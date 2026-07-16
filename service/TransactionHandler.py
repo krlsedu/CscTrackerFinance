@@ -63,12 +63,18 @@ class TransactionHandler:
                 package = json_info['packageName']
                 app_name = json_info['appName']
                 f = int(json_info['postTime'])
-                transaction['type'] = self.get_type(type, status)
+                if "devolvemos o iof" in text_str.lower():
+                    transaction['type'] = "income"
+                    transaction['category'] = "Cashback"
+                    transaction['name'] = app_name
+                else:
+                    transaction['type'] = self.get_type(type, status)
+                    try:
+                        transaction['name'] = self.get_name(text_str)
+                    except:
+                        transaction['name'] = self.get_name(status)
+
                 transaction['value'] = self.get_value(value)
-                try:
-                    transaction['name'] = self.get_name(text_str)
-                except:
-                    transaction['name'] = self.get_name(status)
 
                 transaction['package_name'] = package
                 transaction['app_name'] = app_name
