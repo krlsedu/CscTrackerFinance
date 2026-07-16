@@ -195,6 +195,9 @@ class TransactionHandler:
                     self.remote_repository.insert("transactions",
                                                   data=transaction_,
                                                   headers=headers)
+                    suffix = f" 1/{installments_}"
+                    if transaction_['text'].endswith(suffix):
+                        self.check_and_save_cashback(transaction_, num_parcs=installments_, headers=headers)
             elif installments_ > 1 and (
                     transaction['is_installment'] == 'N'
                     or 'id' not in transaction
@@ -245,42 +248,7 @@ class TransactionHandler:
                                                      data=transaction,
                                                      headers=headers)
 
-            cashback_exists = False
-            if 'key' in transaction and transaction['key'] is not None:
-                try:
-                    cashback_key = f"{transaction['key']}_cashback"
-                    exists_cashback = self.remote_repository.get_objects("transactions",
-                                                                         data={'key': cashback_key},
-                                                                         headers=headers)
-                    if exists_cashback:
-                        for cb in exists_cashback:
-                            if cb.get('category') != 'Ignored':
-                                cashback_exists = True
-                                break
-                except Exception as e:
-                    self.logger.exception(e)
-
-            if not cashback_exists and transaction.get('app_name') == 'Nubank' and transaction.get('type') == 'outcome' and transaction.get('category') != 'Ignored' and num_parcs > 0:
-                try:
-                    cashback_transaction = transaction.copy()
-                    cashback_transaction.pop('id', None)
-                    cashback_transaction['type'] = 'income'
-                    cashback_transaction['name'] = 'Nubank'
-                    cashback_transaction['category'] = 'Cashback'
-                    
-                    original_value = transaction.get('value', 0)
-                    cashback_value = round((original_value * num_parcs) * 0.0125, 2)
-                    cashback_transaction['value'] = cashback_value
-                    
-                    original_text = transaction.get('text', '')
-                    cashback_transaction['text'] = f"Cashback de {cashback_value} referente a {original_text}"
-                    
-                    if 'key' in cashback_transaction and cashback_transaction['key'] is not None:
-                        cashback_transaction['key'] = f"{cashback_transaction['key']}_cashback"
-                        
-                    self.save_transaction(cashback_transaction)
-                except Exception as e:
-                    self.logger.exception(e)
+            self.check_and_save_cashback(transaction, num_parcs, headers)
 
             return response, 201
         except Exception as e:
@@ -290,3 +258,45 @@ class TransactionHandler:
                 'status': 'error',
                 'error': str(e)
             }, 400
+
+    def check_and_save_cashback(self, transaction, num_parcs=1, headers=None):
+        if headers is None:
+            headers = self.http_repository.get_headers()
+        cashback_exists = False
+        if 'key' in transaction and transaction['key'] is not None:
+            try:
+                cashback_key = f"{transaction['key']}_cashback"
+                exists_cashback = self.remote_repository.get_objects("transactions",
+                                                                     data={'key': cashback_key},
+                                                                     headers=headers)
+                if exists_cashback:
+                    for cb in exists_cashback:
+                        if cb.get('category') != 'Ignored':
+                            cashback_exists = True
+                            break
+            except Exception as e:
+                self.logger.exception(e)
+
+        if not cashback_exists and transaction.get('app_name') == 'Nubank' and transaction.get('type') == 'outcome' and transaction.get('category') != 'Ignored' and num_parcs > 0:
+            try:
+                cashback_transaction = transaction.copy()
+                cashback_transaction.pop('id', None)
+                cashback_transaction.pop('is_installment', None)
+                cashback_transaction.pop('installment_id', None)
+                cashback_transaction['type'] = 'income'
+                cashback_transaction['name'] = 'Nubank'
+                cashback_transaction['category'] = 'Cashback'
+                
+                original_value = transaction.get('value', 0)
+                cashback_value = round((original_value * num_parcs) * 0.0125, 2)
+                cashback_transaction['value'] = cashback_value
+                
+                original_text = transaction.get('text', '')
+                cashback_transaction['text'] = f"Cashback de {cashback_value} referente a {original_text}"
+                
+                if 'key' in cashback_transaction and cashback_transaction['key'] is not None:
+                    cashback_transaction['key'] = f"{cashback_transaction['key']}_cashback"
+                    
+                self.save_transaction(cashback_transaction)
+            except Exception as e:
+                self.logger.exception(e)

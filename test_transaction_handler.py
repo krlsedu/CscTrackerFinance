@@ -207,6 +207,100 @@ class TestTransactionHandler(unittest.TestCase):
         self.assertTrue("1/3" in inserted_2["text"])
         self.assertEqual(inserted_2["text"], f"Cashback de 3.75 referente a Compra de R$ 300,00 em Loja Teste às 15:30 (3x). 1/3")
 
+    def test_nubank_cashback_installment_edit(self):
+        # Scenario: We are editing an existing installment transaction of Nubank.
+        # It has 3 installments in the database.
+        # We call save_transactions with an updated installment.
+        
+        # Mock get_objects to return the 3 existing installments when queried by save_transactions
+        existing_installments = [
+            {
+                "id": "inst-1",
+                "key": "nubank_key",
+                "is_installment": "S",
+                "installment_id": "inst-group-123",
+                "text": "Compra de R$ 300,00 em Loja Teste às 15:30 (3x). 1/3",
+                "value": 100.00,
+                "app_name": "Nubank",
+                "type": "outcome",
+                "category": "OldCategory",
+                "name": "OldName",
+                "date": "2026-07-16"
+            },
+            {
+                "id": "inst-2",
+                "key": "nubank_key",
+                "is_installment": "S",
+                "installment_id": "inst-group-123",
+                "text": "Compra de R$ 300,00 em Loja Teste às 15:30 (3x). 2/3",
+                "value": 100.00,
+                "app_name": "Nubank",
+                "type": "outcome",
+                "category": "OldCategory",
+                "name": "OldName",
+                "date": "2026-08-16"
+            },
+            {
+                "id": "inst-3",
+                "key": "nubank_key",
+                "is_installment": "S",
+                "installment_id": "inst-group-123",
+                "text": "Compra de R$ 300,00 em Loja Teste às 15:30 (3x). 3/3",
+                "value": 100.00,
+                "app_name": "Nubank",
+                "type": "outcome",
+                "category": "OldCategory",
+                "name": "OldName",
+                "date": "2026-09-16"
+            }
+        ]
+        
+        # Setup mocks:
+        # First call: save_transactions calls get_objects to get existing installments.
+        # Second call: check_and_save_cashback calls get_objects to see if cashback exists. We return empty list (no cashback exists).
+        def mock_get_objects(table, keys=None, data=None, headers=None):
+            if data and data.get('installment_id') == "inst-group-123":
+                return existing_installments
+            if data and data.get('key') == "nubank_key_cashback":
+                return []
+            return []
+            
+        self.remote_repository.get_objects.side_effect = mock_get_objects
+        
+        # This is the updated transaction sent to save_transactions
+        edited_transaction = {
+            "key": "nubank_key",
+            "is_installment": "S",
+            "installment_id": "inst-group-123",
+            "text": "Compra de R$ 300,00 em Loja Teste às 15:30 (3x). 1/3",
+            "category": "NewCategory",
+            "name": "NewName"
+        }
+        
+        self.handler.save_transactions([edited_transaction], headers={"Authorization": "Bearer test-token"})
+        
+        # Verify that self.remote_repository.insert was called for:
+        # - The 3 updated installments (inserts/upserts them with new category/name)
+        # - The new cashback transaction generated for the first installment
+        # Total insert calls should be 4.
+        self.assertEqual(self.remote_repository.insert.call_count, 4)
+        
+        # Let's verify that the cashback transaction was generated correctly
+        cashback_call = None
+        for call in self.remote_repository.insert.call_args_list:
+            data = call[1]["data"]
+            if data.get("type") == "income" and "cashback" in data.get("key", ""):
+                cashback_call = call
+                break
+                
+        self.assertIsNotNone(cashback_call, "Cashback insert call not found!")
+        cashback_data = cashback_call[1]["data"]
+        self.assertEqual(cashback_data["type"], "income")
+        self.assertEqual(cashback_data["name"], "Nubank")
+        self.assertEqual(cashback_data["category"], "Cashback")
+        self.assertEqual(cashback_data["value"], 3.75)  # 1.25% of (100.00 * 3)
+        self.assertTrue("1/3" in cashback_data["text"])
+
 
 if __name__ == "__main__":
     unittest.main()
