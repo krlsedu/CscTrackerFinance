@@ -66,7 +66,7 @@ class TransactionHandler:
                 if "devolvemos o iof" in text_str.lower():
                     transaction['type'] = "income"
                     transaction['category'] = "Cashback"
-                    transaction['name'] = app_name
+                    transaction['name'] = f"IOF {app_name}"
                 else:
                     transaction['type'] = self.get_type(type, status)
                     try:
