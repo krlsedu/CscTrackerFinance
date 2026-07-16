@@ -1,14 +1,18 @@
-# Release Notes - v26.29.002
+# Release Notes - v26.29.003
 
-## 🚀 Features
+**Data:** 2026
 
-* **Processamento de Pagamentos:** Implementada a lógica de tratamento de *cashback* para transações parceladas realizadas via Nubank.
-  * *Contexto Técnico:* A funcionalidade foi adicionada ao `service/TransactionHandler.py` e acompanhada de uma robusta cobertura de testes unitários (`test_transaction_handler.py`), garantindo a confiabilidade dos cálculos e cenários de parcelamento. (Commit: `a18e3b2`)
+Abaixo estão as atualizações técnicas referentes à versão `v26.29.003`. 
 
-## 🐛 Fixes
+### 🚀 Features
+* **Cashback / Transações:** Adicionado o campo `category` para o mapeamento de transações de cashback dentro do serviço `TransactionHandler`. 
+  *(Commit: `45380da` - por Carlos Eduardo Duarte Schwalm)*
 
-* *Nenhuma correção de bug reportada nesta versão.*
+### 🐛 Fixes
+* *Nenhuma correção de bug registrada nesta versão.*
 
-## 🔧 Chore
+### 🔧 Chore
+* *Nenhuma tarefa de manutenção ou refatoração estrutural registrada nesta versão.*
 
-* *Nenhuma tarefa de manutenção ou refatoração estrutural nesta versão.*
+---
+*Nota do Tech Lead: A alteração no `TransactionHandler.py` é pontual (1 linha), mas certifiquem-se de que os consumidores deste serviço (APIs ou workers) estejam preparados para receber e processar o novo payload contendo o campo `category`.*
