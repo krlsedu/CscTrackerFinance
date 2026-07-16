@@ -1,18 +1,20 @@
-# Release Notes - v26.29.003
+Aqui está a proposta de Release Notes técnico, estruturado de forma clara e objetiva, refletindo o impacto das alterações no código.
 
-**Data:** 2026
+***
 
-Abaixo estão as atualizações técnicas referentes à versão `v26.29.003`. 
+# Release Notes - v26.29.004
 
-### 🚀 Features
-* **Cashback / Transações:** Adicionado o campo `category` para o mapeamento de transações de cashback dentro do serviço `TransactionHandler`. 
-  *(Commit: `45380da` - por Carlos Eduardo Duarte Schwalm)*
+## 🚀 Features
+* **Cashback:** Atualização na lógica de geração de cashback no serviço `TransactionHandler`. A alteração inclui a implementação das novas regras de negócio e uma ampliação significativa na cobertura de testes unitários (`test_transaction_handler.py`) para garantir a estabilidade da nova funcionalidade. *(Commit: 5264326)*
 
-### 🐛 Fixes
-* *Nenhuma correção de bug registrada nesta versão.*
+## 🐛 Fixes
+* *Nenhuma correção de bug reportada nesta versão.*
 
-### 🔧 Chore
-* *Nenhuma tarefa de manutenção ou refatoração estrutural registrada nesta versão.*
+## 🔧 Chore
+* *Nenhuma tarefa de manutenção estrutural reportada nesta versão.*
 
----
-*Nota do Tech Lead: A alteração no `TransactionHandler.py` é pontual (1 linha), mas certifiquem-se de que os consumidores deste serviço (APIs ou workers) estejam preparados para receber e processar o novo payload contendo o campo `category`.*
+*** 
+**Resumo Técnico:**
+* **Arquivos modificados:** 2 (`service/TransactionHandler.py`, `test_transaction_handler.py`)
+* **Linhas de código:** +71 inserções, -3 deleções.
+* **Responsável:** Carlos Eduardo Duarte Schwalm (krlsedu)
