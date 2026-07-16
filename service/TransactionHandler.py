@@ -245,7 +245,22 @@ class TransactionHandler:
                                                      data=transaction,
                                                      headers=headers)
 
-            if is_new and transaction.get('app_name') == 'Nubank' and transaction.get('type') == 'outcome' and transaction.get('category') != 'Ignored' and num_parcs > 0:
+            cashback_exists = False
+            if 'key' in transaction and transaction['key'] is not None:
+                try:
+                    cashback_key = f"{transaction['key']}_cashback"
+                    exists_cashback = self.remote_repository.get_objects("transactions",
+                                                                         data={'key': cashback_key},
+                                                                         headers=headers)
+                    if exists_cashback:
+                        for cb in exists_cashback:
+                            if cb.get('category') != 'Ignored':
+                                cashback_exists = True
+                                break
+                except Exception as e:
+                    self.logger.exception(e)
+
+            if not cashback_exists and transaction.get('app_name') == 'Nubank' and transaction.get('type') == 'outcome' and transaction.get('category') != 'Ignored' and num_parcs > 0:
                 try:
                     cashback_transaction = transaction.copy()
                     cashback_transaction.pop('id', None)

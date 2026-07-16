@@ -107,21 +107,74 @@ class TestTransactionHandler(unittest.TestCase):
         inserted_data = self.remote_repository.insert.call_args[1]["data"]
         self.assertEqual(inserted_data["category"], "Ignored")
 
-    def test_nubank_cashback_not_new(self):
+    def test_nubank_cashback_not_new_but_no_cashback_exists(self):
         # We call save_transaction directly with a transaction that has an 'id'
+        # Under the new logic, since no cashback exists, it should still generate cashback!
         transaction = {
             "id": "existing-id",
             "type": "outcome",
             "value": 100.00,
             "app_name": "Nubank",
             "text": "Compra de R$ 100,00 em Loja Teste às 15:30.",
-            "key": "nubank_key"
+            "key": "nubank_key",
+            "date": "2026-07-16"
         }
+        
+        # Make get_objects return empty list for cashback check
+        self.remote_repository.get_objects.return_value = []
+        
+        self.handler.save_transaction(transaction)
+        
+        # Verify that insert was called twice (once for original, once for cashback)
+        self.assertEqual(self.remote_repository.insert.call_count, 2)
+
+    def test_nubank_cashback_already_exists_not_ignored(self):
+        # If cashback already exists and is not 'Ignored', it should NOT generate another cashback
+        transaction = {
+            "type": "outcome",
+            "value": 100.00,
+            "app_name": "Nubank",
+            "text": "Compra de R$ 100,00 em Loja Teste às 15:30.",
+            "key": "nubank_key",
+            "date": "2026-07-16"
+        }
+        
+        # Mock get_objects to return an existing cashback transaction that is not Ignored
+        def mock_get_objects(table, keys=None, data=None, headers=None):
+            if data and data.get('key') == "nubank_key_cashback":
+                return [{"id": "cashback-id", "category": "Cashback"}]
+            return []
+            
+        self.remote_repository.get_objects.side_effect = mock_get_objects
         
         self.handler.save_transaction(transaction)
         
         # Verify that insert was called only once (no cashback generated)
         self.assertEqual(self.remote_repository.insert.call_count, 1)
+
+    def test_nubank_cashback_already_exists_but_ignored(self):
+        # If cashback already exists but is 'Ignored', it SHOULD generate another cashback
+        transaction = {
+            "type": "outcome",
+            "value": 100.00,
+            "app_name": "Nubank",
+            "text": "Compra de R$ 100,00 em Loja Teste às 15:30.",
+            "key": "nubank_key",
+            "date": "2026-07-16"
+        }
+        
+        # Mock get_objects to return an existing cashback transaction that is Ignored
+        def mock_get_objects(table, keys=None, data=None, headers=None):
+            if data and data.get('key') == "nubank_key_cashback":
+                return [{"id": "cashback-id", "category": "Ignored"}]
+            return []
+            
+        self.remote_repository.get_objects.side_effect = mock_get_objects
+        
+        self.handler.save_transaction(transaction)
+        
+        # Verify that insert was called twice (original + new cashback)
+        self.assertEqual(self.remote_repository.insert.call_count, 2)
 
     def test_nubank_cashback_installments(self):
         json_info = {
