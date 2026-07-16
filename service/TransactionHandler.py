@@ -113,7 +113,10 @@ class TransactionHandler:
                 del transaction['id']
             date_ += relativedelta(months=+i)
             transaction['date'] = date_.strftime('%Y-%m-%d')
-            self.save_transaction(transaction)
+            if i == 0:
+                self.save_transaction(transaction, num_parcs=installments_)
+            else:
+                self.save_transaction(transaction, num_parcs=0)
 
     def get_type(self, text, status):
         regex = r"(.*)(compra|Compra|Recebemos.*pagamento)(.*)$"
@@ -204,10 +207,11 @@ class TransactionHandler:
                 self.save_transaction(transaction)
         return "OK"
 
-    def save_transaction(self, transaction):
+    def save_transaction(self, transaction, num_parcs=1):
         try:
             headers = self.http_repository.get_headers()
-            if 'id' not in transaction or transaction['id'] is None:
+            is_new = 'id' not in transaction or transaction['id'] is None
+            if is_new:
                 try:
                     if 'key' in transaction and transaction['key'] is not None and transaction['key'].startswith('ia_extractor_'):
                         exists = self.remote_repository.get_objects("transactions",
@@ -240,6 +244,28 @@ class TransactionHandler:
             response = self.remote_repository.insert("transactions",
                                                      data=transaction,
                                                      headers=headers)
+
+            if is_new and transaction.get('app_name') == 'Nubank' and transaction.get('type') == 'outcome' and transaction.get('category') != 'Ignored' and num_parcs > 0:
+                try:
+                    cashback_transaction = transaction.copy()
+                    cashback_transaction.pop('id', None)
+                    cashback_transaction['type'] = 'income'
+                    cashback_transaction['name'] = 'Nubank'
+                    
+                    original_value = transaction.get('value', 0)
+                    cashback_value = round((original_value * num_parcs) * 0.0125, 2)
+                    cashback_transaction['value'] = cashback_value
+                    
+                    original_text = transaction.get('text', '')
+                    cashback_transaction['text'] = f"Cashback de {cashback_value} referente a {original_text}"
+                    
+                    if 'key' in cashback_transaction and cashback_transaction['key'] is not None:
+                        cashback_transaction['key'] = f"{cashback_transaction['key']}_cashback"
+                        
+                    self.save_transaction(cashback_transaction)
+                except Exception as e:
+                    self.logger.exception(e)
+
             return response, 201
         except Exception as e:
             self.logger.exception(e)
