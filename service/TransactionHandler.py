@@ -9,6 +9,7 @@ from datetime import datetime
 
 from csctracker_py_core.repository.http_repository import HttpRepository
 from csctracker_py_core.repository.remote_repository import RemoteRepository
+from csctracker_py_core.utils.request_info import RequestInfo
 from csctracker_py_core.utils.utils import Utils
 from dateutil.relativedelta import relativedelta
 
@@ -311,6 +312,21 @@ class TransactionHandler:
         
         processed_count = 0
         inserted_count = 0
+        try:
+            request_id = RequestInfo.get_correlation_id()
+        except Exception:
+            request_id = None
+        if not request_id:
+            request_id = f"CscTrackerBff-{uuid.uuid4()}"
+            
+        user_id = 1
+        if headers:
+            try:
+                user = self.remote_repository.get_user(headers)
+                if user and 'id' in user:
+                    user_id = user['id']
+            except Exception as e:
+                self.logger.warning(f"Could not retrieve user from headers, using default user_id = 1. Error: {e}")
         
         for r in range(2, max_r + 1):
             produto = sheet.cell(row=r, column=1).value
@@ -356,17 +372,23 @@ class TransactionHandler:
             qty_int = self._to_int(quantidade)
             pu_float = self._to_float(preco_unitario)
             
+            now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+            
             dividend_data = {
                 'ticker': name,
                 'data_pagamento': date_formatted,
                 'tipo_evento': tipo_evento_str,
                 'quantidade': qty_int,
-                'preco_unitario': pu_float
+                'preco_unitario': pu_float,
+                'user_id': user_id,
+                'request_id': request_id,
+                'last_update': now_str,
+                'created_at': now_str
             }
             
             exists = self.remote_repository.get_objects(
                 "dividends_b3",
-                keys=["ticker", "data_pagamento", "tipo_evento", "quantidade", "preco_unitario"],
+                keys=["ticker", "data_pagamento", "tipo_evento", "quantidade", "preco_unitario", "user_id"],
                 data=dividend_data,
                 headers=headers
             )
@@ -374,8 +396,6 @@ class TransactionHandler:
             processed_count += 1
             if len(exists) == 0:
                 key_uuid = str(uuid.uuid4())
-                req_uuid = f"CscTrackerBff-{uuid.uuid4()}"
-                now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
                 
                 transaction = {
                     'date': date_formatted,
@@ -385,12 +405,12 @@ class TransactionHandler:
                     'package_name': None,
                     'app_name': app_name,
                     'text': text,
-                    'user_id': 1,
+                    'user_id': user_id,
                     'last_update': now_str,
                     'category': 'Proventos',
                     'key': key_uuid,
                     'copy': None,
-                    'request_id': req_uuid,
+                    'request_id': request_id,
                     'is_installment': 'N',
                     'installment_id': None
                 }

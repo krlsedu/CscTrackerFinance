@@ -318,8 +318,9 @@ class TestTransactionHandler(unittest.TestCase):
         wb.save(file_stream)
         file_stream.seek(0)
         
-        headers = {"Authorization": "Bearer test-token"}
+        headers = {"Authorization": "Bearer test-token", "userName": "test@test.com"}
         self.remote_repository.get_objects.return_value = []
+        self.remote_repository.get_user.return_value = {"id": 1, "email": "test@test.com"}
         
         file_mock = MagicMock()
         file_mock.read.return_value = file_stream.getvalue()
@@ -342,6 +343,7 @@ class TestTransactionHandler(unittest.TestCase):
         self.assertEqual(first_tx_call["value"], 5.53)
         self.assertEqual(first_tx_call["type"], "income")
         self.assertEqual(first_tx_call["category"], "Proventos")
+        self.assertEqual(first_tx_call["user_id"], 1)
         
         # Verify first dividends_b3 call
         first_div_call = self.remote_repository.insert.call_args_list[1][1]["data"]
@@ -350,16 +352,19 @@ class TestTransactionHandler(unittest.TestCase):
         self.assertEqual(first_div_call["tipo_evento"], "Rendimento")
         self.assertEqual(first_div_call["quantidade"], 7)
         self.assertEqual(first_div_call["preco_unitario"], 0.79)
+        self.assertEqual(first_div_call["user_id"], 1)
 
         # Verify second transaction (NU INVESTIMENTOS -> Nubank)
         second_tx_call = self.remote_repository.insert.call_args_list[2][1]["data"]
         self.assertEqual(second_tx_call["name"], "BRCR11")
         self.assertEqual(second_tx_call["app_name"], "Nubank")
+        self.assertEqual(second_tx_call["user_id"], 1)
         
         # Verify third transaction (BANCO INTER -> BANCO INTER)
         third_tx_call = self.remote_repository.insert.call_args_list[4][1]["data"]
         self.assertEqual(third_tx_call["name"], "TSMC34")
         self.assertEqual(third_tx_call["app_name"], "BANCO INTER S.A.")
+        self.assertEqual(third_tx_call["user_id"], 1)
 
     def test_process_b3_dividends_with_duplicates(self):
         import io
@@ -375,10 +380,11 @@ class TestTransactionHandler(unittest.TestCase):
         wb.save(file_stream)
         file_stream.seek(0)
         
-        headers = {"Authorization": "Bearer test-token"}
+        headers = {"Authorization": "Bearer test-token", "userName": "test@test.com"}
         
         # get_objects returns an existing item, meaning it is a duplicate!
         self.remote_repository.get_objects.return_value = [{"id": 123}]
+        self.remote_repository.get_user.return_value = {"id": 1, "email": "test@test.com"}
         
         file_mock = MagicMock()
         file_mock.read.return_value = file_stream.getvalue()
@@ -393,6 +399,46 @@ class TestTransactionHandler(unittest.TestCase):
         self.assertEqual(self.remote_repository.get_objects.call_count, 1)
         # But we did not call insert
         self.remote_repository.insert.assert_not_called()
+
+    def test_process_b3_dividends_with_user_and_request_id(self):
+        import io
+        import openpyxl
+        from unittest.mock import MagicMock, patch
+        
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["Produto", "Pagamento", "Tipo de Evento", "Instituição", "Quantidade", "Preço unitário", "Valor líquido"])
+        ws.append(["BCRI11 - BANESTES RECEBIVEIS", "15/07/2026", "Rendimento", "BANCO BTG PACTUAL S/A.", 7, "R$ 0,79", "R$ 5,53"])
+        
+        file_stream = io.BytesIO()
+        wb.save(file_stream)
+        file_stream.seek(0)
+        
+        headers = {"Authorization": "Bearer test-token", "userName": "john.doe@test.com"}
+        self.remote_repository.get_objects.return_value = []
+        self.remote_repository.get_user.return_value = {"id": 99, "email": "john.doe@test.com"}
+        
+        file_mock = MagicMock()
+        file_mock.read.return_value = file_stream.getvalue()
+        
+        with patch('csctracker_py_core.utils.request_info.RequestInfo.get_correlation_id', return_value="my-custom-req-123"):
+            result = self.handler.process_b3_dividends(file_mock, headers)
+            
+        self.assertEqual(result['status'], 'success')
+        self.assertEqual(result['processed'], 1)
+        self.assertEqual(result['inserted'], 1)
+        
+        # Verify transaction insert data
+        tx_call_data = self.remote_repository.insert.call_args_list[0][1]["data"]
+        self.assertEqual(tx_call_data["user_id"], 99)
+        self.assertEqual(tx_call_data["request_id"], "my-custom-req-123")
+        
+        # Verify dividends_b3 insert data
+        div_call_data = self.remote_repository.insert.call_args_list[1][1]["data"]
+        self.assertEqual(div_call_data["user_id"], 99)
+        self.assertEqual(div_call_data["request_id"], "my-custom-req-123")
+        self.assertIsNotNone(div_call_data["last_update"])
+        self.assertIsNotNone(div_call_data["created_at"])
 
 
 if __name__ == "__main__":
