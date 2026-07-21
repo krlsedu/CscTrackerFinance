@@ -441,5 +441,72 @@ class TestTransactionHandler(unittest.TestCase):
         self.assertIsNotNone(div_call_data["created_at"])
 
 
+class TestAppRoutes(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from unittest.mock import patch
+        cls.starter_patch = patch('csctracker_py_core.starter.Starter.start')
+        cls.starter_patch.start()
+        import app
+        cls.app_module = app
+        cls.client = app.app.test_client()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.starter_patch.stop()
+
+    def test_process_dividends_endpoint_success(self):
+        from unittest.mock import MagicMock
+        original_handler = self.app_module.transaction_handler
+        self.app_module.transaction_handler = MagicMock()
+        self.app_module.transaction_handler.process_b3_dividends.return_value = {'status': 'success', 'processed': 1}
+        
+        try:
+            res = self.client.post('/transactions/dividends', json={'file': 'SGVsbG8gd29ybGQ='})
+            self.assertEqual(res.status_code, 201)
+            self.assertEqual(res.get_json(), {'status': 'success', 'processed': 1})
+            
+            # Verify process_b3_dividends was called and got the decoded bytes
+            call_arg = self.app_module.transaction_handler.process_b3_dividends.call_args[0][0]
+            self.assertEqual(call_arg.read(), b'Hello world')
+        finally:
+            self.app_module.transaction_handler = original_handler
+
+    def test_process_dividends_endpoint_success_with_data_uri(self):
+        from unittest.mock import MagicMock
+        original_handler = self.app_module.transaction_handler
+        self.app_module.transaction_handler = MagicMock()
+        self.app_module.transaction_handler.process_b3_dividends.return_value = {'status': 'success', 'processed': 1}
+        
+        try:
+            res = self.client.post('/transactions/dividends', json={'file': 'data:application/octet-stream;base64,SGVsbG8gd29ybGQ='})
+            self.assertEqual(res.status_code, 201)
+            self.assertEqual(res.get_json(), {'status': 'success', 'processed': 1})
+            
+            # Verify process_b3_dividends was called and got the decoded bytes
+            call_arg = self.app_module.transaction_handler.process_b3_dividends.call_args[0][0]
+            self.assertEqual(call_arg.read(), b'Hello world')
+        finally:
+            self.app_module.transaction_handler = original_handler
+
+    def test_process_dividends_endpoint_missing_file_field(self):
+        res = self.client.post('/transactions/dividends', json={})
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.get_json()['status'], 'error')
+        self.assertIn('No file in request body', res.get_json()['text'])
+
+    def test_process_dividends_endpoint_empty_file_field(self):
+        res = self.client.post('/transactions/dividends', json={'file': ''})
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.get_json()['status'], 'error')
+        self.assertIn('File field is empty', res.get_json()['text'])
+
+    def test_process_dividends_endpoint_invalid_base64(self):
+        res = self.client.post('/transactions/dividends', json={'file': '!!!invalid!!!'})
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.get_json()['status'], 'error')
+        self.assertIn('Invalid base64 format', res.get_json()['text'])
+
+
 if __name__ == "__main__":
     unittest.main()
