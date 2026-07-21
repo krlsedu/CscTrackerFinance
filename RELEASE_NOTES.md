@@ -1,12 +1,10 @@
-# Release Notes - v26.30.002
+# Release Notes - v26.30.003
 
-## 🚀 Features
-*Nenhuma nova funcionalidade adicionada nesta versão.*
+### 🚀 Features
+*Nenhuma nova funcionalidade introduzida nesta versão.*
 
-## 🐛 Fixes
-*Nenhuma correção de bug nesta versão.*
+### 🐛 Fixes
+*Nenhuma correção de bug explícita nesta versão.*
 
-## 🔧 Chore
-* **Testes:** Adição de cobertura de testes para o endpoint `/transactions/dividends`.
-  * **Detalhes técnicos:** Criação da suíte de testes no arquivo `test_transaction_handler.py` (67 linhas) e pequenos ajustes estruturais no `app.py` para suportar a testabilidade do endpoint.
-  * **Commit:** `1e844d6` - *Carlos Eduardo Duarte Schwalm*
+### 🔧 Chore
+* **Core (`app.py`):** Atualização na lógica de *parsing* de requisições durante o fluxo de processamento de arquivos. Ajuste interno para melhorar a extração e manipulação dos dados da requisição. (`2292ec6` - Carlos Eduardo Duarte Schwalm)
