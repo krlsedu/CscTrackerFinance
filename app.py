@@ -57,8 +57,9 @@ def process_dividends():
     try:
         import base64
         import io
-        
-        body = http_repository.get_json_body()
+        from flask import request
+
+        body = request.get_json(force=True, silent=True)
         if not body or 'file' not in body:
             return {'status': 'error', 'text': 'No file in request body'}, 400
             
