@@ -52,4 +52,28 @@ def transactions():
         return message, 400, {'Content-Type': 'application/json'}
 
 
+@app.route('/transactions/dividends', methods=['POST'])
+def process_dividends():
+    try:
+        from flask import request
+        if 'file' not in request.files:
+            return {'status': 'error', 'text': 'No file in request'}, 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return {'status': 'error', 'text': 'No file selected'}, 400
+            
+        headers = http_repository.get_headers()
+        response = transaction_handler.process_b3_dividends(file, headers)
+        return response, 201, {'Content-Type': 'application/json'}
+    except Exception as e:
+        message = {
+            'text': 'dividends not processed',
+            'status': 'error',
+            'error': str(e)
+        }
+        logger.exception(e)
+        return message, 400, {'Content-Type': 'application/json'}
+
+
 starter.start()

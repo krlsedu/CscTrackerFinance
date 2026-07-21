@@ -32,7 +32,7 @@ class TestTransactionHandler(unittest.TestCase):
         self.assertEqual(inserted_data["type"], "income")
         self.assertEqual(inserted_data["value"], 0.15)
         self.assertEqual(inserted_data.get("category"), "Cashback")
-        self.assertEqual(inserted_data["name"], "TestApp")
+        self.assertEqual(inserted_data["name"], "IOF TestApp")
         self.assertEqual(inserted_data["app_name"], "TestApp")
         self.assertEqual(inserted_data["text"], text_str)
 
@@ -300,6 +300,99 @@ class TestTransactionHandler(unittest.TestCase):
         self.assertEqual(cashback_data["category"], "Cashback")
         self.assertEqual(cashback_data["value"], 3.75)  # 1.25% of (100.00 * 3)
         self.assertTrue("1/3" in cashback_data["text"])
+
+    def test_process_b3_dividends(self):
+        import io
+        import openpyxl
+        from unittest.mock import MagicMock
+        
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["Produto", "Pagamento", "Tipo de Evento", "Instituição", "Quantidade", "Preço unitário", "Valor líquido"])
+        ws.append(["BCRI11 - BANESTES RECEBIVEIS", "15/07/2026", "Rendimento", "BANCO BTG PACTUAL S/A.", 7, "R$ 0,79", "R$ 5,53"])
+        ws.append(["BRCR11 - FDO INV IMOB", "15/07/2026", "Rendimento", "NU INVESTIMENTOS S.A. - CTVM", 22, "R$ 0,41", "R$ 9,02"])
+        ws.append(["TSMC34 - TAIWAN SEMICONDUCTOR", "15/07/2026", "Dividendo", "BANCO INTER S.A.", 4, "R$ 0,46", "R$ 1,82"])
+        ws.append(["TOTAL", "", "", "", "", "", ""])
+        
+        file_stream = io.BytesIO()
+        wb.save(file_stream)
+        file_stream.seek(0)
+        
+        headers = {"Authorization": "Bearer test-token"}
+        self.remote_repository.get_objects.return_value = []
+        
+        file_mock = MagicMock()
+        file_mock.read.return_value = file_stream.getvalue()
+        
+        result = self.handler.process_b3_dividends(file_mock, headers)
+        
+        self.assertEqual(result['status'], 'success')
+        self.assertEqual(result['processed'], 3)
+        self.assertEqual(result['inserted'], 3)
+        
+        # 3 calls to get_objects to check dividends_b3 table
+        self.assertEqual(self.remote_repository.get_objects.call_count, 3)
+        # 6 calls to insert (3 for transactions, 3 for dividends_b3)
+        self.assertEqual(self.remote_repository.insert.call_count, 6)
+        
+        # Verify first transaction call
+        first_tx_call = self.remote_repository.insert.call_args_list[0][1]["data"]
+        self.assertEqual(first_tx_call["name"], "BCRI11")
+        self.assertEqual(first_tx_call["app_name"], "BTG")
+        self.assertEqual(first_tx_call["value"], 5.53)
+        self.assertEqual(first_tx_call["type"], "income")
+        self.assertEqual(first_tx_call["category"], "Proventos")
+        
+        # Verify first dividends_b3 call
+        first_div_call = self.remote_repository.insert.call_args_list[1][1]["data"]
+        self.assertEqual(first_div_call["ticker"], "BCRI11")
+        self.assertEqual(first_div_call["data_pagamento"], "2026-07-15")
+        self.assertEqual(first_div_call["tipo_evento"], "Rendimento")
+        self.assertEqual(first_div_call["quantidade"], 7)
+        self.assertEqual(first_div_call["preco_unitario"], 0.79)
+
+        # Verify second transaction (NU INVESTIMENTOS -> Nubank)
+        second_tx_call = self.remote_repository.insert.call_args_list[2][1]["data"]
+        self.assertEqual(second_tx_call["name"], "BRCR11")
+        self.assertEqual(second_tx_call["app_name"], "Nubank")
+        
+        # Verify third transaction (BANCO INTER -> BANCO INTER)
+        third_tx_call = self.remote_repository.insert.call_args_list[4][1]["data"]
+        self.assertEqual(third_tx_call["name"], "TSMC34")
+        self.assertEqual(third_tx_call["app_name"], "BANCO INTER S.A.")
+
+    def test_process_b3_dividends_with_duplicates(self):
+        import io
+        import openpyxl
+        from unittest.mock import MagicMock
+        
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["Produto", "Pagamento", "Tipo de Evento", "Instituição", "Quantidade", "Preço unitário", "Valor líquido"])
+        ws.append(["BCRI11 - BANESTES RECEBIVEIS", "15/07/2026", "Rendimento", "BANCO BTG PACTUAL S/A.", 7, "R$ 0,79", "R$ 5,53"])
+        
+        file_stream = io.BytesIO()
+        wb.save(file_stream)
+        file_stream.seek(0)
+        
+        headers = {"Authorization": "Bearer test-token"}
+        
+        # get_objects returns an existing item, meaning it is a duplicate!
+        self.remote_repository.get_objects.return_value = [{"id": 123}]
+        
+        file_mock = MagicMock()
+        file_mock.read.return_value = file_stream.getvalue()
+        
+        result = self.handler.process_b3_dividends(file_mock, headers)
+        
+        self.assertEqual(result['status'], 'success')
+        self.assertEqual(result['processed'], 1)
+        self.assertEqual(result['inserted'], 0) # No insertion
+        
+        # Verify we still called get_objects
+        self.assertEqual(self.remote_repository.get_objects.call_count, 1)
+        # But we did not call insert
+        self.remote_repository.insert.assert_not_called()
 
 
 if __name__ == "__main__":

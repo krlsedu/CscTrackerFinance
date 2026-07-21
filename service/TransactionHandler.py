@@ -1,6 +1,8 @@
 import decimal
+import io
 import json
 import logging
+import openpyxl
 import re
 import uuid
 from datetime import datetime
@@ -300,3 +302,191 @@ class TransactionHandler:
                 self.save_transaction(cashback_transaction)
             except Exception as e:
                 self.logger.exception(e)
+
+    def process_b3_dividends(self, file_storage, headers):
+        file_bytes = file_storage.read()
+        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
+        sheet = wb.active
+        max_r = sheet.max_row
+        
+        processed_count = 0
+        inserted_count = 0
+        
+        for r in range(2, max_r + 1):
+            produto = sheet.cell(row=r, column=1).value
+            pagamento = sheet.cell(row=r, column=2).value
+            tipo_evento = sheet.cell(row=r, column=3).value
+            instituicao = sheet.cell(row=r, column=4).value
+            quantidade = sheet.cell(row=r, column=5).value
+            preco_unitario = sheet.cell(row=r, column=6).value
+            valor_liquido = sheet.cell(row=r, column=7).value
+            
+            if produto is None:
+                continue
+            produto_str = str(produto).strip()
+            if not produto_str or produto_str == "" or produto_str.lower() == "total":
+                continue
+                
+            if '-' in produto_str:
+                name = produto_str.split('-')[0].strip()
+            else:
+                name = produto_str
+                
+            date_formatted = self._format_date(pagamento)
+            if not date_formatted:
+                continue
+                
+            qty_str = self._format_quantity(quantidade)
+            pu_str = self._to_currency_str(preco_unitario)
+            vl_str = self._to_currency_str(valor_liquido)
+            vl_float = self._to_float(valor_liquido)
+            
+            tipo_evento_str = str(tipo_evento).strip() if tipo_evento is not None else ""
+            instituicao_str = str(instituicao).strip() if instituicao is not None else ""
+            
+            text = f"{tipo_evento_str} recebido, referente a {qty_str} cotas de {produto_str} no valor de {pu_str} por cota, total: {vl_str} na instituição {instituicao_str}"
+            
+            if "NU INVESTIMENTOS S.A. - CTVM" in instituicao_str:
+                app_name = "Nubank"
+            elif "BANCO BTG PACTUAL S/A." in instituicao_str:
+                app_name = "BTG"
+            else:
+                app_name = instituicao_str
+                
+            qty_int = self._to_int(quantidade)
+            pu_float = self._to_float(preco_unitario)
+            
+            dividend_data = {
+                'ticker': name,
+                'data_pagamento': date_formatted,
+                'tipo_evento': tipo_evento_str,
+                'quantidade': qty_int,
+                'preco_unitario': pu_float
+            }
+            
+            exists = self.remote_repository.get_objects(
+                "dividends_b3",
+                keys=["ticker", "data_pagamento", "tipo_evento", "quantidade", "preco_unitario"],
+                data=dividend_data,
+                headers=headers
+            )
+            
+            processed_count += 1
+            if len(exists) == 0:
+                key_uuid = str(uuid.uuid4())
+                req_uuid = f"CscTrackerBff-{uuid.uuid4()}"
+                now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+                
+                transaction = {
+                    'date': date_formatted,
+                    'type': 'income',
+                    'value': vl_float,
+                    'name': name,
+                    'package_name': None,
+                    'app_name': app_name,
+                    'text': text,
+                    'user_id': 1,
+                    'last_update': now_str,
+                    'category': 'Proventos',
+                    'key': key_uuid,
+                    'copy': None,
+                    'request_id': req_uuid,
+                    'is_installment': 'N',
+                    'installment_id': None
+                }
+                
+                self.remote_repository.insert("transactions", data=transaction, headers=headers)
+                self.remote_repository.insert("dividends_b3", data=dividend_data, headers=headers)
+                
+                inserted_count += 1
+                
+        return {
+            'status': 'success',
+            'processed': processed_count,
+            'inserted': inserted_count
+        }
+
+    def _to_float(self, val):
+        if val is None:
+            return 0.0
+        if isinstance(val, (int, float)):
+            return float(val)
+        if isinstance(val, str):
+            val = val.strip()
+            clean = val.replace("R$", "").replace(" ", "")
+            if ',' in clean:
+                clean = clean.replace(".", "").replace(",", ".")
+            try:
+                return float(clean)
+            except ValueError:
+                return 0.0
+        return 0.0
+
+    def _to_int(self, val):
+        if val is None:
+            return 0
+        if isinstance(val, (int, float)):
+            return int(val)
+        if isinstance(val, str):
+            val = val.strip()
+            try:
+                return int(float(val.replace(',', '.')))
+            except ValueError:
+                return 0
+        return 0
+
+    def _to_currency_str(self, val):
+        if val is None:
+            return "R$ 0,00"
+        if isinstance(val, (int, float)):
+            parts = f"{val:.2f}".split('.')
+            integer_part = parts[0]
+            decimal_part = parts[1]
+            
+            reversed_integer = integer_part[::-1]
+            groups = [reversed_integer[i:i+3] for i in range(0, len(reversed_integer), 3)]
+            formatted_integer = '.'.join(groups)[::-1]
+            
+            return f"R$ {formatted_integer},{decimal_part}"
+        if isinstance(val, str):
+            val = val.strip()
+            if not val.startswith("R$"):
+                f_val = self._to_float(val)
+                return self._to_currency_str(f_val)
+            return val
+        return str(val)
+
+    def _format_quantity(self, val):
+        if val is None:
+            return "0"
+        if isinstance(val, (int, float)):
+            if val == int(val):
+                return str(int(val))
+            return str(val)
+        if isinstance(val, str):
+            val = val.strip()
+            try:
+                val_float = float(val.replace(',', '.'))
+                if val_float == int(val_float):
+                    return str(int(val_float))
+                return str(val_float)
+            except ValueError:
+                return val
+        return str(val)
+
+    def _format_date(self, val):
+        if val is None:
+            return None
+        if isinstance(val, datetime):
+            return val.strftime('%Y-%m-%d')
+        if hasattr(val, 'strftime'):
+            return val.strftime('%Y-%m-%d')
+        if isinstance(val, str):
+            val = val.strip()
+            for fmt in ('%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y', '%Y/%m/%d'):
+                try:
+                    dt = datetime.strptime(val, fmt)
+                    return dt.strftime('%Y-%m-%d')
+                except ValueError:
+                    continue
+        return str(val)
