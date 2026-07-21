@@ -362,9 +362,9 @@ class TransactionHandler:
             
             text = f"{tipo_evento_str} recebido, referente a {qty_str} cotas de {produto_str} no valor de {pu_str} por cota, total: {vl_str} na instituição {instituicao_str}"
             
-            if "NU INVESTIMENTOS S.A. - CTVM" in instituicao_str:
+            if "NU INVESTIMENTOS" in instituicao_str:
                 app_name = "Nubank"
-            elif "BANCO BTG PACTUAL S/A." in instituicao_str:
+            elif "BANCO BTG PACTUAL" in instituicao_str:
                 app_name = "BTG"
             else:
                 app_name = instituicao_str
