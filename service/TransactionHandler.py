@@ -661,7 +661,7 @@ class TransactionHandler:
         mime_type: str = "image/png",
         model: str = "lite",
         return_json: bool = False,
-        task: str = "Categorizar uso de dispositivos",
+        task: str = "Classificação de transações financeiras",
         force_paid: bool = True,
         event_id: str = None,
         thinking_level: str = "minimal",
