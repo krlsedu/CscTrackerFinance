@@ -440,6 +440,84 @@ class TestTransactionHandler(unittest.TestCase):
         self.assertIsNotNone(div_call_data["last_update"])
         self.assertIsNotNone(div_call_data["created_at"])
 
+    def _build_ofx(self):
+        return (
+            "<OFX>\n"
+            "<BANKTRANLIST>\n"
+            "<STMTTRN>\n"
+            "<TRNTYPE>DEBIT</TRNTYPE>\n"
+            "<DTPOSTED>20260721000000[-3:BRT]</DTPOSTED>\n"
+            "<TRNAMT>-91.56</TRNAMT>\n"
+            "<FITID>fit-1</FITID>\n"
+            "<MEMO>Zaffari Caxias</MEMO>\n"
+            "</STMTTRN>\n"
+            "<STMTTRN>\n"
+            "<TRNTYPE>CREDIT</TRNTYPE>\n"
+            "<DTPOSTED>20260709000000[-3:BRT]</DTPOSTED>\n"
+            "<TRNAMT>705.91</TRNAMT>\n"
+            "<FITID>fit-2</FITID>\n"
+            "<MEMO>Pagamento recebido</MEMO>\n"
+            "</STMTTRN>\n"
+            "<STMTTRN>\n"
+            "<TRNTYPE>CREDIT</TRNTYPE>\n"
+            "<DTPOSTED>20260710000000[-3:BRT]</DTPOSTED>\n"
+            "<TRNAMT>50.00</TRNAMT>\n"
+            "<FITID>fit-3</FITID>\n"
+            "<MEMO>Estorno</MEMO>\n"
+            "</STMTTRN>\n"
+            "</BANKTRANLIST>\n"
+            "</OFX>\n"
+        )
+
+    def test_process_nubank_ofx(self):
+        from unittest.mock import MagicMock
+        headers = {"Authorization": "Bearer test-token", "userName": "test@test.com"}
+        self.remote_repository.get_objects.return_value = []
+        self.remote_repository.get_user.return_value = {"id": 1, "email": "test@test.com"}
+
+        file_mock = MagicMock()
+        file_mock.read.return_value = self._build_ofx().encode('latin-1')
+
+        result = self.handler.process_nubank_ofx(file_mock, headers)
+
+        self.assertEqual(result['status'], 'success')
+        # "Pagamento recebido" is ignored, so 2 processed
+        self.assertEqual(result['processed'], 2)
+        self.assertEqual(result['inserted'], 2)
+        self.assertEqual(self.remote_repository.insert.call_count, 2)
+
+        first_tx = self.remote_repository.insert.call_args_list[0][1]["data"]
+        self.assertEqual(first_tx["date"], "2026-07-21")
+        self.assertEqual(first_tx["type"], "outcome")
+        self.assertEqual(first_tx["value"], 91.56)
+        self.assertEqual(first_tx["name"], "Zaffari Caxias")
+        self.assertEqual(first_tx["app_name"], "Nubank da Suelen")
+        self.assertEqual(first_tx["key"], "fit-1")
+        self.assertEqual(first_tx["is_installment"], "N")
+        self.assertIn("Zaffari Caxias", first_tx["text"])
+        self.assertEqual(first_tx["user_id"], 1)
+
+        second_tx = self.remote_repository.insert.call_args_list[1][1]["data"]
+        self.assertEqual(second_tx["type"], "income")
+        self.assertEqual(second_tx["value"], 50.00)
+        self.assertEqual(second_tx["key"], "fit-3")
+
+    def test_process_nubank_ofx_duplicates(self):
+        from unittest.mock import MagicMock
+        headers = {"Authorization": "Bearer test-token", "userName": "test@test.com"}
+        self.remote_repository.get_objects.return_value = [{"id": 123}]
+        self.remote_repository.get_user.return_value = {"id": 1, "email": "test@test.com"}
+
+        file_mock = MagicMock()
+        file_mock.read.return_value = self._build_ofx().encode('latin-1')
+
+        result = self.handler.process_nubank_ofx(file_mock, headers)
+
+        self.assertEqual(result['status'], 'success')
+        self.assertEqual(result['processed'], 2)
+        self.assertEqual(result['inserted'], 0)
+        self.remote_repository.insert.assert_not_called()
+
 
 class TestAppRoutes(unittest.TestCase):
     @classmethod
@@ -506,6 +584,28 @@ class TestAppRoutes(unittest.TestCase):
         self.assertEqual(res.status_code, 400)
         self.assertEqual(res.get_json()['status'], 'error')
         self.assertIn('Invalid base64 format', res.get_json()['text'])
+
+    def test_process_ofx_endpoint_success(self):
+        from unittest.mock import MagicMock
+        original_handler = self.app_module.transaction_handler
+        self.app_module.transaction_handler = MagicMock()
+        self.app_module.transaction_handler.process_nubank_ofx.return_value = {'status': 'success', 'processed': 1}
+
+        try:
+            res = self.client.post('/transactions/ofx', json={'file': 'SGVsbG8gd29ybGQ='})
+            self.assertEqual(res.status_code, 201)
+            self.assertEqual(res.get_json(), {'status': 'success', 'processed': 1})
+
+            call_arg = self.app_module.transaction_handler.process_nubank_ofx.call_args[0][0]
+            self.assertEqual(call_arg.read(), b'Hello world')
+        finally:
+            self.app_module.transaction_handler = original_handler
+
+    def test_process_ofx_endpoint_missing_file_field(self):
+        res = self.client.post('/transactions/ofx', json={})
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.get_json()['status'], 'error')
+        self.assertIn('No file in request body', res.get_json()['text'])
 
 
 if __name__ == "__main__":

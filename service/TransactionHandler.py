@@ -426,6 +426,114 @@ class TransactionHandler:
             'inserted': inserted_count
         }
 
+    def process_nubank_ofx(self, file_storage, headers):
+        file_bytes = file_storage.read()
+        try:
+            content = file_bytes.decode('latin-1')
+        except Exception:
+            content = file_bytes.decode('utf-8', errors='ignore')
+
+        processed_count = 0
+        inserted_count = 0
+        try:
+            request_id = RequestInfo.get_correlation_id()
+        except Exception:
+            request_id = None
+        if not request_id:
+            request_id = f"CscTrackerBff-{uuid.uuid4()}"
+
+        user_id = 1
+        if headers:
+            try:
+                user = self.remote_repository.get_user(headers)
+                if user and 'id' in user:
+                    user_id = user['id']
+            except Exception as e:
+                self.logger.warning(f"Could not retrieve user from headers, using default user_id = 1. Error: {e}")
+
+        app_name = "Nubank da Suelen"
+
+        stmt_blocks = re.findall(r"<STMTTRN>(.*?)</STMTTRN>", content, re.DOTALL)
+        for block in stmt_blocks:
+            trntype = self._get_ofx_field(block, "TRNTYPE")
+            dtposted = self._get_ofx_field(block, "DTPOSTED")
+            trnamt = self._get_ofx_field(block, "TRNAMT")
+            fitid = self._get_ofx_field(block, "FITID")
+            memo = self._get_ofx_field(block, "MEMO")
+
+            if not fitid or not trnamt or not dtposted:
+                continue
+
+            if memo and "pagamento recebido" in memo.lower():
+                continue
+
+            date_formatted = None
+            if len(dtposted) >= 8:
+                date_str = dtposted[:8]
+                try:
+                    dt = datetime.strptime(date_str, '%Y%m%d')
+                    date_formatted = dt.strftime('%Y-%m-%d')
+                except ValueError:
+                    date_formatted = None
+            if not date_formatted:
+                continue
+
+            vl_float = abs(self._to_float(trnamt))
+
+            trntype_upper = (trntype or "").strip().upper()
+            if trntype_upper == "CREDIT":
+                type_ = "income"
+            else:
+                type_ = "outcome"
+
+            name = memo.strip() if memo else ""
+            value_str = self._to_currency_str(vl_float)
+            text = f"Compra no valor de {value_str} em {name}"
+
+            key = fitid.strip()
+
+            now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+
+            exists = self.remote_repository.get_objects(
+                "transactions",
+                keys=["key", "user_id"],
+                data={'key': key, 'user_id': user_id},
+                headers=headers
+            )
+
+            processed_count += 1
+            if len(exists) == 0:
+                transaction = {
+                    'date': date_formatted,
+                    'type': type_,
+                    'value': vl_float,
+                    'name': name,
+                    'package_name': None,
+                    'app_name': app_name,
+                    'text': text,
+                    'user_id': user_id,
+                    'last_update': now_str,
+                    'key': key,
+                    'copy': None,
+                    'request_id': request_id,
+                    'is_installment': 'N',
+                    'installment_id': None
+                }
+                self.remote_repository.insert("transactions", data=transaction, headers=headers)
+                inserted_count += 1
+
+        return {
+            'status': 'success',
+            'processed': processed_count,
+            'inserted': inserted_count
+        }
+
+    def _get_ofx_field(self, block, tag):
+        match = re.search(rf"<{tag}>([^<\r\n]*)", block)
+        if match:
+            return match.group(1).strip()
+        return None
+
     def _to_float(self, val):
         if val is None:
             return 0.0
