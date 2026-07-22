@@ -1,6 +1,6 @@
-Release Notes - v26.30.007
+Release Notes - v26.30.008
 
-Abaixo estão as notas de atualização para a versão v26.30.007. Esta versão foca em pequenos ajustes internos e manutenção no serviço de processamento de transações.
+Abaixo estão as notas de atualização para a versão v26.30.008. Esta versão foca em ajustes de configuração e manutenção interna dos serviços de transação.
 
 ## 🚀 Features
 *(Nenhuma alteração desta categoria nesta versão)*
@@ -9,5 +9,5 @@ Abaixo estão as notas de atualização para a versão v26.30.007. Esta versão 
 *(Nenhuma alteração desta categoria nesta versão)*
 
 ## 🔧 Chore
-* **TransactionHandler:** Atualiza a descrição da tarefa de categorização de transações (`service/TransactionHandler.py`).
-  * *Commit: `4f985fc` | Autor: @krlsedu*
+* **TransactionHandler:** Atualização do nível de serviço padrão (`service/TransactionHandler.py`).
+  * *Commit: `dd53244` | Autor: @krlsedu*
