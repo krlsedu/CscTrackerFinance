@@ -1,6 +1,6 @@
-Release Notes - v26.30.008
+Release Notes - v26.30.009
 
-Abaixo estão as notas de atualização para a versão v26.30.008. Esta versão foca em ajustes de configuração e manutenção interna dos serviços de transação.
+Abaixo estão as notas de atualização para a versão v26.30.009. Esta release tem como foco principal a refatoração e melhoria na estrutura da suíte de testes e do manipulador de transações.
 
 ## 🚀 Features
 *(Nenhuma alteração desta categoria nesta versão)*
@@ -9,5 +9,5 @@ Abaixo estão as notas de atualização para a versão v26.30.008. Esta versão 
 *(Nenhuma alteração desta categoria nesta versão)*
 
 ## 🔧 Chore
-* **TransactionHandler:** Atualização do nível de serviço padrão (`service/TransactionHandler.py`).
-  * *Commit: `dd53244` | Autor: @krlsedu*
+* **Transaction Handler:** Reformatação e melhoria na estrutura dos testes do manipulador de transações (`test_transaction_handler.py`, `service/TransactionHandler.py`).
+  * *Commit: `db2c468` | Autor: @krlsedu*
