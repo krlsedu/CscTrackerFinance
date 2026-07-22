@@ -665,7 +665,7 @@ class TransactionHandler:
         force_paid: bool = True,
         event_id: str = None,
         thinking_level: str = "minimal",
-        service_tier: str = "flex"
+        service_tier: str = "standard"
     ):
 
         token = RequestInfo.get_header("Authorization")
