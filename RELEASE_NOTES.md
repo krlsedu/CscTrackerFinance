@@ -1,10 +1,10 @@
-Release Notes - v26.30.005
+Release Notes - v26.30.006
 
-Abaixo estão as notas de atualização para a versão v26.30.005. Esta release foca na introdução do processamento de arquivos OFX do Nubank e na criação de um novo endpoint para transações.
+Abaixo estão as notas de atualização para a versão v26.30.006. Esta versão tem como foco principal a introdução de inteligência artificial para a categorização automática de transações no processamento de arquivos OFX.
 
 ## 🚀 Features
-* **Transactions:** Adição do endpoint `/transactions/ofx` e processamento de arquivos OFX do Nubank (`app.py`, `service/TransactionHandler.py`, `test_transaction_handler.py`).
-  * *Commit: `09be27e` | Autor: @krlsedu*
+* **Processamento OFX:** Adição de categorização de transações baseada em IA (`service/TransactionHandler.py`).
+  * *Commit: `d2b50a3` | Autor: @krlsedu*
 
 ## 🐛 Fixes
 *(Nenhuma alteração desta categoria nesta versão)*
