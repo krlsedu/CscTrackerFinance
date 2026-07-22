@@ -2,13 +2,18 @@ import decimal
 import io
 import json
 import logging
+import os
+
 import openpyxl
 import re
 import uuid
 from datetime import datetime
 
+import requests
+
 from csctracker_py_core.repository.http_repository import HttpRepository
 from csctracker_py_core.repository.remote_repository import RemoteRepository
+from csctracker_py_core.utils.configs import Configs
 from csctracker_py_core.utils.request_info import RequestInfo
 from csctracker_py_core.utils.utils import Utils
 from dateutil.relativedelta import relativedelta
@@ -454,6 +459,8 @@ class TransactionHandler:
         app_name = "Nubank da Suelen"
 
         stmt_blocks = re.findall(r"<STMTTRN>(.*?)</STMTTRN>", content, re.DOTALL)
+        transactions = []
+        transactions_ia = []
         for block in stmt_blocks:
             trntype = self._get_ofx_field(block, "TRNTYPE")
             dtposted = self._get_ofx_field(block, "DTPOSTED")
@@ -519,8 +526,36 @@ class TransactionHandler:
                     'is_installment': 'N',
                     'installment_id': None
                 }
-                self.remote_repository.insert("transactions", data=transaction, headers=headers)
-                inserted_count += 1
+                transactions.append(transaction)
+
+                transaction_ia = {
+                    'id': key,
+                    'descricao': text
+                }
+                transactions_ia.append(transaction_ia)
+
+        if transactions_ia:
+            with open("prompts/cassificador.txt", "r", encoding="utf-8") as f:
+                prompt_ai = f.read()
+
+            resps_ai, _ = self.analyze(
+                prompt_texto=prompt_ai,
+                input_text=json.dumps(transactions_ia, cls=Encoder),
+                model="lite",
+                return_json=True
+            )
+
+            if resps_ai and isinstance(resps_ai, list):
+                for resp_ai in resps_ai:
+                    id_ai = resp_ai.get('id')
+                    category_ai = resp_ai.get('category')
+                    for t in transactions:
+                        if t['key'] == id_ai:
+                            t['category'] = category_ai
+                            self.remote_repository.insert("transactions", data=t, headers=headers)
+                            inserted_count += 1
+                            break
+
 
         return {
             'status': 'success',
@@ -618,3 +653,63 @@ class TransactionHandler:
                 except ValueError:
                     continue
         return str(val)
+
+    def analyze(self,
+        prompt_texto: str,
+        input_text: str,
+        file_base64: str = None,
+        mime_type: str = "image/png",
+        model: str = "lite",
+        return_json: bool = False,
+        task: str = "Categorizar uso de dispositivos",
+        force_paid: bool = True,
+        event_id: str = None,
+        thinking_level: str = "minimal",
+        service_tier: str = "flex"
+    ):
+
+        token = RequestInfo.get_header("Authorization")
+        if token:
+            token = token.replace("Bearer ", "")
+        _body = {
+            "prompt": prompt_texto,
+            "input_text": input_text,
+            "base64": file_base64,
+            "mime_type": mime_type,
+            "model": model,
+            "return_json": return_json,
+            "task": task,
+            "force_paid": force_paid,
+            "event_id": event_id,
+            "thinking_level": thinking_level,
+            "service_tier": service_tier,
+        }
+
+        _headers = {
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Encoding": "gzip, deflate, br, zstd",
+            "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "x-correlation-id": RequestInfo.get_request_id(),
+        }
+        try:
+            _url_bff = Configs.get_url_bff()
+            if _url_bff:
+                _url_bff = _url_bff.rstrip("/")
+                _response = requests.post(
+                    f"{_url_bff}/ai-processor/analyze",
+                    json=_body,
+                    headers=_headers,
+                    timeout=6000,
+                )
+                try:
+                    _response = _response.json()
+                    self.logger.info(f"[{event_id}] Resposta gemini: {_response}")
+                    return _response.get("response"), _response.get("input_tokens")
+                except json.JSONDecodeError:
+                    self.logger.error(f"[{event_id}] Erro ao decodificar JSON: {_response.text}")
+                    return _response.text, 0
+        except Exception as e:
+            self.logger.error(f"[{event_id}] Erro na API do Gemini: {e}")
+            return None, None

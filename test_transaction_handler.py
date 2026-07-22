@@ -474,6 +474,10 @@ class TestTransactionHandler(unittest.TestCase):
         headers = {"Authorization": "Bearer test-token", "userName": "test@test.com"}
         self.remote_repository.get_objects.return_value = []
         self.remote_repository.get_user.return_value = {"id": 1, "email": "test@test.com"}
+        self.handler.analyze = MagicMock(return_value=([
+            {'id': 'fit-1', 'category': 'Alimentação'},
+            {'id': 'fit-3', 'category': 'Cashback'}
+        ], 100))
 
         file_mock = MagicMock()
         file_mock.read.return_value = self._build_ofx().encode('latin-1')
@@ -493,6 +497,7 @@ class TestTransactionHandler(unittest.TestCase):
         self.assertEqual(first_tx["name"], "Zaffari Caxias")
         self.assertEqual(first_tx["app_name"], "Nubank da Suelen")
         self.assertEqual(first_tx["key"], "fit-1")
+        self.assertEqual(first_tx["category"], "Alimentação")
         self.assertEqual(first_tx["is_installment"], "N")
         self.assertIn("Zaffari Caxias", first_tx["text"])
         self.assertEqual(first_tx["user_id"], 1)
@@ -501,6 +506,7 @@ class TestTransactionHandler(unittest.TestCase):
         self.assertEqual(second_tx["type"], "income")
         self.assertEqual(second_tx["value"], 50.00)
         self.assertEqual(second_tx["key"], "fit-3")
+        self.assertEqual(second_tx["category"], "Cashback")
 
     def test_process_nubank_ofx_duplicates(self):
         from unittest.mock import MagicMock

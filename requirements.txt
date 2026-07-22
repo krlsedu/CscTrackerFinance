@@ -1,6 +1,5 @@
 ﻿
-csctracker-py-core==24.03.001
-csctracker-queue-scheduler==24.02.002
+csctracker-py-core==26.30.1
 
 python-dateutil~=2.8.2
 

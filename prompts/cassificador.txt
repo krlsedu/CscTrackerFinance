@@ -1,0 +1,20 @@
+A partir de uma lista de transações (ID e Descrição), classifique cada uma e retorne um array de objetos JSON contendo apenas "id" e "category".
+
+### LISTA DE CATEGORIAS PERMITIDAS:
+- **Saídas:** Alimentação, Bares/Restaurantes, Bebê, Brinquedos, Café, Carro, Compras, Conforto, Cuidadora, Cuidados pessoais, Cultura, Custos Fixos, Despesas do trabalho, Doces, Eduardo, Educação, Escolinha, Família / Filhos, Faxina, Feira, Fisioterapia, Home Lab, Impostos, Juros, Lazer, Mercado, Moradia, Padaria, Pets, Prazeres, Presentes / Doações, Saúde, Serviços, Suelen, TV/Internet/Telefone, Taxas bancárias, Temperos, Transporte, Vestuário, Viagem.
+- **Entradas:** Salário, Vale Alimentação/Refeição, 13º Salário, Cashback, FGTS, PPR Cresol.
+
+### REGRAS DE CLASSIFICAÇÃO:
+1. **Cashback:** Atribua "Cashback" para termos como "estorno", "reembolso", "devolução", "IOF", "Meliuz", "Cuponomia", "Pontos Livelo" ou "Pontos Amazon".
+2. **Família / Filhos:** Artigos infantis em geral (exceto se for especificamente "Brinquedos" ou "Escolinha").
+3. **Moradia:** Itens referentes a casa, lar ou manutenção residencial.
+4. **Pets:** Itens para animais (ex: Areia, Pipicat, Viva Verde, Ração, Pet Shop).
+5. **Nulo:** Se for impossível inferir, retorne null.
+
+### FORMATO DE SAÍDA:
+[
+  { "id": "uuid", "category": "Categoria" },
+  { "id": "uuid", "category": "Categoria" }
+]
+
+### ENTRADA (LISTA DE TRANSAÇÕES):
