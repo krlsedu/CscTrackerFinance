@@ -8,8 +8,12 @@ class TestTransactionHandler(unittest.TestCase):
     def setUp(self):
         self.remote_repository = MagicMock()
         self.http_repository = MagicMock()
-        self.http_repository.get_headers.return_value = {"Authorization": "Bearer test-token"}
-        self.remote_repository.get_objects.return_value = []  # No existing transactions, to avoid 'Ignored'
+        self.http_repository.get_headers.return_value = {
+            "Authorization": "Bearer test-token"
+        }
+        self.remote_repository.get_objects.return_value = (
+            []
+        )  # No existing transactions, to avoid 'Ignored'
         Utils.inform_to_client = MagicMock()
         self.handler = TransactionHandler(self.remote_repository, self.http_repository)
 
@@ -18,16 +22,16 @@ class TestTransactionHandler(unittest.TestCase):
             "packageName": "com.test.app",
             "appName": "TestApp",
             "postTime": "1773752400000",  # some epoch timestamp
-            "key": "test_key"
+            "key": "test_key",
         }
         text_str = "Devolvemos o IOF de R$ 0,15 referente à compra na Paypal *Jetbrainsam. Continue aproveitando o cartão com o menor custo do mercado."
-        
+
         self.handler.transaction(text_str, json_info)
-        
+
         # Verify that insert was called
         self.remote_repository.insert.assert_called_once()
         inserted_data = self.remote_repository.insert.call_args[1]["data"]
-        
+
         # Assertions
         self.assertEqual(inserted_data["type"], "income")
         self.assertEqual(inserted_data["value"], 0.15)
@@ -41,15 +45,15 @@ class TestTransactionHandler(unittest.TestCase):
             "packageName": "com.test.app",
             "appName": "TestApp",
             "postTime": "1773752400000",
-            "key": "test_key"
+            "key": "test_key",
         }
         text_str = "Compra de R$ 50,00 em Loja Teste às 15:30."
-        
+
         self.handler.transaction(text_str, json_info)
-        
+
         self.remote_repository.insert.assert_called_once()
         inserted_data = self.remote_repository.insert.call_args[1]["data"]
-        
+
         self.assertEqual(inserted_data["type"], "outcome")
         self.assertEqual(inserted_data["value"], 50.00)
         self.assertIsNone(inserted_data.get("category"))
@@ -60,15 +64,15 @@ class TestTransactionHandler(unittest.TestCase):
             "packageName": "com.nubank",
             "appName": "Nubank",
             "postTime": "1773752400000",
-            "key": "nubank_key"
+            "key": "nubank_key",
         }
         text_str = "Compra de R$ 100,00 em Loja Teste às 15:30."
-        
+
         self.handler.transaction(text_str, json_info)
-        
+
         # Verify that insert was called twice (once for original, once for cashback)
         self.assertEqual(self.remote_repository.insert.call_count, 2)
-        
+
         # Check first insert (original transaction)
         first_call_args = self.remote_repository.insert.call_args_list[0]
         inserted_data_1 = first_call_args[1]["data"]
@@ -77,7 +81,7 @@ class TestTransactionHandler(unittest.TestCase):
         self.assertEqual(inserted_data_1["app_name"], "Nubank")
         self.assertIsNone(inserted_data_1.get("category"))
         self.assertEqual(inserted_data_1["text"], text_str)
-        
+
         # Check second insert (cashback transaction)
         second_call_args = self.remote_repository.insert.call_args_list[1]
         inserted_data_2 = second_call_args[1]["data"]
@@ -85,23 +89,25 @@ class TestTransactionHandler(unittest.TestCase):
         self.assertEqual(inserted_data_2["name"], "Nubank")
         self.assertEqual(inserted_data_2["app_name"], "Nubank")
         self.assertEqual(inserted_data_2["value"], 1.25)
-        self.assertEqual(inserted_data_2["text"], f"Cashback de 1.25 referente a {text_str}")
+        self.assertEqual(
+            inserted_data_2["text"], f"Cashback de 1.25 referente a {text_str}"
+        )
         self.assertEqual(inserted_data_2["key"], "nubank_key_cashback")
 
     def test_nubank_cashback_ignored(self):
         # Setup get_objects to return some existing transaction, making it ignored
         self.remote_repository.get_objects.return_value = [{"id": 123}]
-        
+
         json_info = {
             "packageName": "com.nubank",
             "appName": "Nubank",
             "postTime": "1773752400000",
-            "key": "nubank_key"
+            "key": "nubank_key",
         }
         text_str = "Compra de R$ 100,00 em Loja Teste às 15:30."
-        
+
         self.handler.transaction(text_str, json_info)
-        
+
         # Verify that insert was called only once (because the cashback was not generated since category is Ignored)
         self.assertEqual(self.remote_repository.insert.call_count, 1)
         inserted_data = self.remote_repository.insert.call_args[1]["data"]
@@ -117,14 +123,14 @@ class TestTransactionHandler(unittest.TestCase):
             "app_name": "Nubank",
             "text": "Compra de R$ 100,00 em Loja Teste às 15:30.",
             "key": "nubank_key",
-            "date": "2026-07-16"
+            "date": "2026-07-16",
         }
-        
+
         # Make get_objects return empty list for cashback check
         self.remote_repository.get_objects.return_value = []
-        
+
         self.handler.save_transaction(transaction)
-        
+
         # Verify that insert was called twice (once for original, once for cashback)
         self.assertEqual(self.remote_repository.insert.call_count, 2)
 
@@ -136,19 +142,19 @@ class TestTransactionHandler(unittest.TestCase):
             "app_name": "Nubank",
             "text": "Compra de R$ 100,00 em Loja Teste às 15:30.",
             "key": "nubank_key",
-            "date": "2026-07-16"
+            "date": "2026-07-16",
         }
-        
+
         # Mock get_objects to return an existing cashback transaction that is not Ignored
         def mock_get_objects(table, keys=None, data=None, headers=None):
-            if data and data.get('key') == "nubank_key_cashback":
+            if data and data.get("key") == "nubank_key_cashback":
                 return [{"id": "cashback-id", "category": "Cashback"}]
             return []
-            
+
         self.remote_repository.get_objects.side_effect = mock_get_objects
-        
+
         self.handler.save_transaction(transaction)
-        
+
         # Verify that insert was called only once (no cashback generated)
         self.assertEqual(self.remote_repository.insert.call_count, 1)
 
@@ -160,19 +166,19 @@ class TestTransactionHandler(unittest.TestCase):
             "app_name": "Nubank",
             "text": "Compra de R$ 100,00 em Loja Teste às 15:30.",
             "key": "nubank_key",
-            "date": "2026-07-16"
+            "date": "2026-07-16",
         }
-        
+
         # Mock get_objects to return an existing cashback transaction that is Ignored
         def mock_get_objects(table, keys=None, data=None, headers=None):
-            if data and data.get('key') == "nubank_key_cashback":
+            if data and data.get("key") == "nubank_key_cashback":
                 return [{"id": "cashback-id", "category": "Ignored"}]
             return []
-            
+
         self.remote_repository.get_objects.side_effect = mock_get_objects
-        
+
         self.handler.save_transaction(transaction)
-        
+
         # Verify that insert was called twice (original + new cashback)
         self.assertEqual(self.remote_repository.insert.call_count, 2)
 
@@ -181,37 +187,40 @@ class TestTransactionHandler(unittest.TestCase):
             "packageName": "com.nubank",
             "appName": "Nubank",
             "postTime": "1773752400000",
-            "key": "nubank_key"
+            "key": "nubank_key",
         }
         # A transaction with (3x) installments
         text_str = "Compra de R$ 300,00 em Loja Teste às 15:30 (3x)."
-        
+
         self.handler.transaction(text_str, json_info)
-        
+
         # Verify that insert was called 4 times:
         # - 3 times for the original split transactions
         # - 1 time for the full cashback transaction (triggered only on the first installment)
         self.assertEqual(self.remote_repository.insert.call_count, 4)
-        
+
         # Let's verify the first installment and its cashback
         # First insert: installment 1 (mutated reference or final loop text depending on implementation, but let's check its value)
         inserted_1 = self.remote_repository.insert.call_args_list[0][1]["data"]
         self.assertEqual(inserted_1["type"], "outcome")
         self.assertEqual(inserted_1["value"], 100.00)
-        
+
         # Second insert: cashback for installment 1 (copied, so preserves the installment text and gets full cashback value)
         inserted_2 = self.remote_repository.insert.call_args_list[1][1]["data"]
         self.assertEqual(inserted_2["type"], "income")
         self.assertEqual(inserted_2["name"], "Nubank")
         self.assertEqual(inserted_2["value"], 3.75)  # 1.25% of 300.00
         self.assertTrue("1/3" in inserted_2["text"])
-        self.assertEqual(inserted_2["text"], f"Cashback de 3.75 referente a Compra de R$ 300,00 em Loja Teste às 15:30 (3x). 1/3")
+        self.assertEqual(
+            inserted_2["text"],
+            f"Cashback de 3.75 referente a Compra de R$ 300,00 em Loja Teste às 15:30 (3x). 1/3",
+        )
 
     def test_nubank_cashback_installment_edit(self):
         # Scenario: We are editing an existing installment transaction of Nubank.
         # It has 3 installments in the database.
         # We call save_transactions with an updated installment.
-        
+
         # Mock get_objects to return the 3 existing installments when queried by save_transactions
         existing_installments = [
             {
@@ -225,7 +234,7 @@ class TestTransactionHandler(unittest.TestCase):
                 "type": "outcome",
                 "category": "OldCategory",
                 "name": "OldName",
-                "date": "2026-07-16"
+                "date": "2026-07-16",
             },
             {
                 "id": "inst-2",
@@ -238,7 +247,7 @@ class TestTransactionHandler(unittest.TestCase):
                 "type": "outcome",
                 "category": "OldCategory",
                 "name": "OldName",
-                "date": "2026-08-16"
+                "date": "2026-08-16",
             },
             {
                 "id": "inst-3",
@@ -251,22 +260,22 @@ class TestTransactionHandler(unittest.TestCase):
                 "type": "outcome",
                 "category": "OldCategory",
                 "name": "OldName",
-                "date": "2026-09-16"
-            }
+                "date": "2026-09-16",
+            },
         ]
-        
+
         # Setup mocks:
         # First call: save_transactions calls get_objects to get existing installments.
         # Second call: check_and_save_cashback calls get_objects to see if cashback exists. We return empty list (no cashback exists).
         def mock_get_objects(table, keys=None, data=None, headers=None):
-            if data and data.get('installment_id') == "inst-group-123":
+            if data and data.get("installment_id") == "inst-group-123":
                 return existing_installments
-            if data and data.get('key') == "nubank_key_cashback":
+            if data and data.get("key") == "nubank_key_cashback":
                 return []
             return []
-            
+
         self.remote_repository.get_objects.side_effect = mock_get_objects
-        
+
         # This is the updated transaction sent to save_transactions
         edited_transaction = {
             "key": "nubank_key",
@@ -274,17 +283,19 @@ class TestTransactionHandler(unittest.TestCase):
             "installment_id": "inst-group-123",
             "text": "Compra de R$ 300,00 em Loja Teste às 15:30 (3x). 1/3",
             "category": "NewCategory",
-            "name": "NewName"
+            "name": "NewName",
         }
-        
-        self.handler.save_transactions([edited_transaction], headers={"Authorization": "Bearer test-token"})
-        
+
+        self.handler.save_transactions(
+            [edited_transaction], headers={"Authorization": "Bearer test-token"}
+        )
+
         # Verify that self.remote_repository.insert was called for:
         # - The 3 updated installments (inserts/upserts them with new category/name)
         # - The new cashback transaction generated for the first installment
         # Total insert calls should be 4.
         self.assertEqual(self.remote_repository.insert.call_count, 4)
-        
+
         # Let's verify that the cashback transaction was generated correctly
         cashback_call = None
         for call in self.remote_repository.insert.call_args_list:
@@ -292,7 +303,7 @@ class TestTransactionHandler(unittest.TestCase):
             if data.get("type") == "income" and "cashback" in data.get("key", ""):
                 cashback_call = call
                 break
-                
+
         self.assertIsNotNone(cashback_call, "Cashback insert call not found!")
         cashback_data = cashback_call[1]["data"]
         self.assertEqual(cashback_data["type"], "income")
@@ -305,37 +316,80 @@ class TestTransactionHandler(unittest.TestCase):
         import io
         import openpyxl
         from unittest.mock import MagicMock
-        
+
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.append(["Produto", "Pagamento", "Tipo de Evento", "Instituição", "Quantidade", "Preço unitário", "Valor líquido"])
-        ws.append(["BCRI11 - BANESTES RECEBIVEIS", "15/07/2026", "Rendimento", "BANCO BTG PACTUAL S/A.", 7, "R$ 0,79", "R$ 5,53"])
-        ws.append(["BRCR11 - FDO INV IMOB", "15/07/2026", "Rendimento", "NU INVESTIMENTOS S.A. - CTVM", 22, "R$ 0,41", "R$ 9,02"])
-        ws.append(["TSMC34 - TAIWAN SEMICONDUCTOR", "15/07/2026", "Dividendo", "BANCO INTER S.A.", 4, "R$ 0,46", "R$ 1,82"])
+        ws.append(
+            [
+                "Produto",
+                "Pagamento",
+                "Tipo de Evento",
+                "Instituição",
+                "Quantidade",
+                "Preço unitário",
+                "Valor líquido",
+            ]
+        )
+        ws.append(
+            [
+                "BCRI11 - BANESTES RECEBIVEIS",
+                "15/07/2026",
+                "Rendimento",
+                "BANCO BTG PACTUAL S/A.",
+                7,
+                "R$ 0,79",
+                "R$ 5,53",
+            ]
+        )
+        ws.append(
+            [
+                "BRCR11 - FDO INV IMOB",
+                "15/07/2026",
+                "Rendimento",
+                "NU INVESTIMENTOS S.A. - CTVM",
+                22,
+                "R$ 0,41",
+                "R$ 9,02",
+            ]
+        )
+        ws.append(
+            [
+                "TSMC34 - TAIWAN SEMICONDUCTOR",
+                "15/07/2026",
+                "Dividendo",
+                "BANCO INTER S.A.",
+                4,
+                "R$ 0,46",
+                "R$ 1,82",
+            ]
+        )
         ws.append(["TOTAL", "", "", "", "", "", ""])
-        
+
         file_stream = io.BytesIO()
         wb.save(file_stream)
         file_stream.seek(0)
-        
+
         headers = {"Authorization": "Bearer test-token", "userName": "test@test.com"}
         self.remote_repository.get_objects.return_value = []
-        self.remote_repository.get_user.return_value = {"id": 1, "email": "test@test.com"}
-        
+        self.remote_repository.get_user.return_value = {
+            "id": 1,
+            "email": "test@test.com",
+        }
+
         file_mock = MagicMock()
         file_mock.read.return_value = file_stream.getvalue()
-        
+
         result = self.handler.process_b3_dividends(file_mock, headers)
-        
-        self.assertEqual(result['status'], 'success')
-        self.assertEqual(result['processed'], 3)
-        self.assertEqual(result['inserted'], 3)
-        
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["processed"], 3)
+        self.assertEqual(result["inserted"], 3)
+
         # 3 calls to get_objects to check dividends_b3 table
         self.assertEqual(self.remote_repository.get_objects.call_count, 3)
         # 6 calls to insert (3 for transactions, 3 for dividends_b3)
         self.assertEqual(self.remote_repository.insert.call_count, 6)
-        
+
         # Verify first transaction call
         first_tx_call = self.remote_repository.insert.call_args_list[0][1]["data"]
         self.assertEqual(first_tx_call["name"], "BCRI11")
@@ -344,7 +398,7 @@ class TestTransactionHandler(unittest.TestCase):
         self.assertEqual(first_tx_call["type"], "income")
         self.assertEqual(first_tx_call["category"], "Proventos")
         self.assertEqual(first_tx_call["user_id"], 1)
-        
+
         # Verify first dividends_b3 call
         first_div_call = self.remote_repository.insert.call_args_list[1][1]["data"]
         self.assertEqual(first_div_call["ticker"], "BCRI11")
@@ -359,7 +413,7 @@ class TestTransactionHandler(unittest.TestCase):
         self.assertEqual(second_tx_call["name"], "BRCR11")
         self.assertEqual(second_tx_call["app_name"], "Nubank")
         self.assertEqual(second_tx_call["user_id"], 1)
-        
+
         # Verify third transaction (BANCO INTER -> BANCO INTER)
         third_tx_call = self.remote_repository.insert.call_args_list[4][1]["data"]
         self.assertEqual(third_tx_call["name"], "TSMC34")
@@ -370,31 +424,54 @@ class TestTransactionHandler(unittest.TestCase):
         import io
         import openpyxl
         from unittest.mock import MagicMock
-        
+
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.append(["Produto", "Pagamento", "Tipo de Evento", "Instituição", "Quantidade", "Preço unitário", "Valor líquido"])
-        ws.append(["BCRI11 - BANESTES RECEBIVEIS", "15/07/2026", "Rendimento", "BANCO BTG PACTUAL S/A.", 7, "R$ 0,79", "R$ 5,53"])
-        
+        ws.append(
+            [
+                "Produto",
+                "Pagamento",
+                "Tipo de Evento",
+                "Instituição",
+                "Quantidade",
+                "Preço unitário",
+                "Valor líquido",
+            ]
+        )
+        ws.append(
+            [
+                "BCRI11 - BANESTES RECEBIVEIS",
+                "15/07/2026",
+                "Rendimento",
+                "BANCO BTG PACTUAL S/A.",
+                7,
+                "R$ 0,79",
+                "R$ 5,53",
+            ]
+        )
+
         file_stream = io.BytesIO()
         wb.save(file_stream)
         file_stream.seek(0)
-        
+
         headers = {"Authorization": "Bearer test-token", "userName": "test@test.com"}
-        
+
         # get_objects returns an existing item, meaning it is a duplicate!
         self.remote_repository.get_objects.return_value = [{"id": 123}]
-        self.remote_repository.get_user.return_value = {"id": 1, "email": "test@test.com"}
-        
+        self.remote_repository.get_user.return_value = {
+            "id": 1,
+            "email": "test@test.com",
+        }
+
         file_mock = MagicMock()
         file_mock.read.return_value = file_stream.getvalue()
-        
+
         result = self.handler.process_b3_dividends(file_mock, headers)
-        
-        self.assertEqual(result['status'], 'success')
-        self.assertEqual(result['processed'], 1)
-        self.assertEqual(result['inserted'], 0) # No insertion
-        
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["processed"], 1)
+        self.assertEqual(result["inserted"], 0)  # No insertion
+
         # Verify we still called get_objects
         self.assertEqual(self.remote_repository.get_objects.call_count, 1)
         # But we did not call insert
@@ -404,35 +481,64 @@ class TestTransactionHandler(unittest.TestCase):
         import io
         import openpyxl
         from unittest.mock import MagicMock, patch
-        
+
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.append(["Produto", "Pagamento", "Tipo de Evento", "Instituição", "Quantidade", "Preço unitário", "Valor líquido"])
-        ws.append(["BCRI11 - BANESTES RECEBIVEIS", "15/07/2026", "Rendimento", "BANCO BTG PACTUAL S/A.", 7, "R$ 0,79", "R$ 5,53"])
-        
+        ws.append(
+            [
+                "Produto",
+                "Pagamento",
+                "Tipo de Evento",
+                "Instituição",
+                "Quantidade",
+                "Preço unitário",
+                "Valor líquido",
+            ]
+        )
+        ws.append(
+            [
+                "BCRI11 - BANESTES RECEBIVEIS",
+                "15/07/2026",
+                "Rendimento",
+                "BANCO BTG PACTUAL S/A.",
+                7,
+                "R$ 0,79",
+                "R$ 5,53",
+            ]
+        )
+
         file_stream = io.BytesIO()
         wb.save(file_stream)
         file_stream.seek(0)
-        
-        headers = {"Authorization": "Bearer test-token", "userName": "john.doe@test.com"}
+
+        headers = {
+            "Authorization": "Bearer test-token",
+            "userName": "john.doe@test.com",
+        }
         self.remote_repository.get_objects.return_value = []
-        self.remote_repository.get_user.return_value = {"id": 99, "email": "john.doe@test.com"}
-        
+        self.remote_repository.get_user.return_value = {
+            "id": 99,
+            "email": "john.doe@test.com",
+        }
+
         file_mock = MagicMock()
         file_mock.read.return_value = file_stream.getvalue()
-        
-        with patch('csctracker_py_core.utils.request_info.RequestInfo.get_correlation_id', return_value="my-custom-req-123"):
+
+        with patch(
+            "csctracker_py_core.utils.request_info.RequestInfo.get_correlation_id",
+            return_value="my-custom-req-123",
+        ):
             result = self.handler.process_b3_dividends(file_mock, headers)
-            
-        self.assertEqual(result['status'], 'success')
-        self.assertEqual(result['processed'], 1)
-        self.assertEqual(result['inserted'], 1)
-        
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["processed"], 1)
+        self.assertEqual(result["inserted"], 1)
+
         # Verify transaction insert data
         tx_call_data = self.remote_repository.insert.call_args_list[0][1]["data"]
         self.assertEqual(tx_call_data["user_id"], 99)
         self.assertEqual(tx_call_data["request_id"], "my-custom-req-123")
-        
+
         # Verify dividends_b3 insert data
         div_call_data = self.remote_repository.insert.call_args_list[1][1]["data"]
         self.assertEqual(div_call_data["user_id"], 99)
@@ -471,23 +577,32 @@ class TestTransactionHandler(unittest.TestCase):
 
     def test_process_nubank_ofx(self):
         from unittest.mock import MagicMock
+
         headers = {"Authorization": "Bearer test-token", "userName": "test@test.com"}
         self.remote_repository.get_objects.return_value = []
-        self.remote_repository.get_user.return_value = {"id": 1, "email": "test@test.com"}
-        self.handler.analyze = MagicMock(return_value=([
-            {'id': 'fit-1', 'category': 'Alimentação'},
-            {'id': 'fit-3', 'category': 'Cashback'}
-        ], 100))
+        self.remote_repository.get_user.return_value = {
+            "id": 1,
+            "email": "test@test.com",
+        }
+        self.handler.analyze = MagicMock(
+            return_value=(
+                [
+                    {"id": "fit-1", "category": "Alimentação"},
+                    {"id": "fit-3", "category": "Cashback"},
+                ],
+                100,
+            )
+        )
 
         file_mock = MagicMock()
-        file_mock.read.return_value = self._build_ofx().encode('latin-1')
+        file_mock.read.return_value = self._build_ofx().encode("latin-1")
 
         result = self.handler.process_nubank_ofx(file_mock, headers)
 
-        self.assertEqual(result['status'], 'success')
+        self.assertEqual(result["status"], "success")
         # "Pagamento recebido" is ignored, so 2 processed
-        self.assertEqual(result['processed'], 2)
-        self.assertEqual(result['inserted'], 2)
+        self.assertEqual(result["processed"], 2)
+        self.assertEqual(result["inserted"], 2)
         self.assertEqual(self.remote_repository.insert.call_count, 2)
 
         first_tx = self.remote_repository.insert.call_args_list[0][1]["data"]
@@ -510,18 +625,22 @@ class TestTransactionHandler(unittest.TestCase):
 
     def test_process_nubank_ofx_duplicates(self):
         from unittest.mock import MagicMock
+
         headers = {"Authorization": "Bearer test-token", "userName": "test@test.com"}
         self.remote_repository.get_objects.return_value = [{"id": 123}]
-        self.remote_repository.get_user.return_value = {"id": 1, "email": "test@test.com"}
+        self.remote_repository.get_user.return_value = {
+            "id": 1,
+            "email": "test@test.com",
+        }
 
         file_mock = MagicMock()
-        file_mock.read.return_value = self._build_ofx().encode('latin-1')
+        file_mock.read.return_value = self._build_ofx().encode("latin-1")
 
         result = self.handler.process_nubank_ofx(file_mock, headers)
 
-        self.assertEqual(result['status'], 'success')
-        self.assertEqual(result['processed'], 2)
-        self.assertEqual(result['inserted'], 0)
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["processed"], 2)
+        self.assertEqual(result["inserted"], 0)
         self.remote_repository.insert.assert_not_called()
 
 
@@ -529,9 +648,11 @@ class TestAppRoutes(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from unittest.mock import patch
-        cls.starter_patch = patch('csctracker_py_core.starter.Starter.start')
+
+        cls.starter_patch = patch("csctracker_py_core.starter.Starter.start")
         cls.starter_patch.start()
         import app
+
         cls.app_module = app
         cls.client = app.app.test_client()
 
@@ -541,77 +662,104 @@ class TestAppRoutes(unittest.TestCase):
 
     def test_process_dividends_endpoint_success(self):
         from unittest.mock import MagicMock
+
         original_handler = self.app_module.transaction_handler
         self.app_module.transaction_handler = MagicMock()
-        self.app_module.transaction_handler.process_b3_dividends.return_value = {'status': 'success', 'processed': 1}
-        
+        self.app_module.transaction_handler.process_b3_dividends.return_value = {
+            "status": "success",
+            "processed": 1,
+        }
+
         try:
-            res = self.client.post('/transactions/dividends', json={'file': 'SGVsbG8gd29ybGQ='})
+            res = self.client.post(
+                "/transactions/dividends", json={"file": "SGVsbG8gd29ybGQ="}
+            )
             self.assertEqual(res.status_code, 201)
-            self.assertEqual(res.get_json(), {'status': 'success', 'processed': 1})
-            
+            self.assertEqual(res.get_json(), {"status": "success", "processed": 1})
+
             # Verify process_b3_dividends was called and got the decoded bytes
-            call_arg = self.app_module.transaction_handler.process_b3_dividends.call_args[0][0]
-            self.assertEqual(call_arg.read(), b'Hello world')
+            call_arg = (
+                self.app_module.transaction_handler.process_b3_dividends.call_args[0][0]
+            )
+            self.assertEqual(call_arg.read(), b"Hello world")
         finally:
             self.app_module.transaction_handler = original_handler
 
     def test_process_dividends_endpoint_success_with_data_uri(self):
         from unittest.mock import MagicMock
+
         original_handler = self.app_module.transaction_handler
         self.app_module.transaction_handler = MagicMock()
-        self.app_module.transaction_handler.process_b3_dividends.return_value = {'status': 'success', 'processed': 1}
-        
+        self.app_module.transaction_handler.process_b3_dividends.return_value = {
+            "status": "success",
+            "processed": 1,
+        }
+
         try:
-            res = self.client.post('/transactions/dividends', json={'file': 'data:application/octet-stream;base64,SGVsbG8gd29ybGQ='})
+            res = self.client.post(
+                "/transactions/dividends",
+                json={"file": "data:application/octet-stream;base64,SGVsbG8gd29ybGQ="},
+            )
             self.assertEqual(res.status_code, 201)
-            self.assertEqual(res.get_json(), {'status': 'success', 'processed': 1})
-            
+            self.assertEqual(res.get_json(), {"status": "success", "processed": 1})
+
             # Verify process_b3_dividends was called and got the decoded bytes
-            call_arg = self.app_module.transaction_handler.process_b3_dividends.call_args[0][0]
-            self.assertEqual(call_arg.read(), b'Hello world')
+            call_arg = (
+                self.app_module.transaction_handler.process_b3_dividends.call_args[0][0]
+            )
+            self.assertEqual(call_arg.read(), b"Hello world")
         finally:
             self.app_module.transaction_handler = original_handler
 
     def test_process_dividends_endpoint_missing_file_field(self):
-        res = self.client.post('/transactions/dividends', json={})
+        res = self.client.post("/transactions/dividends", json={})
         self.assertEqual(res.status_code, 400)
-        self.assertEqual(res.get_json()['status'], 'error')
-        self.assertIn('No file in request body', res.get_json()['text'])
+        self.assertEqual(res.get_json()["status"], "error")
+        self.assertIn("No file in request body", res.get_json()["text"])
 
     def test_process_dividends_endpoint_empty_file_field(self):
-        res = self.client.post('/transactions/dividends', json={'file': ''})
+        res = self.client.post("/transactions/dividends", json={"file": ""})
         self.assertEqual(res.status_code, 400)
-        self.assertEqual(res.get_json()['status'], 'error')
-        self.assertIn('File field is empty', res.get_json()['text'])
+        self.assertEqual(res.get_json()["status"], "error")
+        self.assertIn("File field is empty", res.get_json()["text"])
 
     def test_process_dividends_endpoint_invalid_base64(self):
-        res = self.client.post('/transactions/dividends', json={'file': '!!!invalid!!!'})
+        res = self.client.post(
+            "/transactions/dividends", json={"file": "!!!invalid!!!"}
+        )
         self.assertEqual(res.status_code, 400)
-        self.assertEqual(res.get_json()['status'], 'error')
-        self.assertIn('Invalid base64 format', res.get_json()['text'])
+        self.assertEqual(res.get_json()["status"], "error")
+        self.assertIn("Invalid base64 format", res.get_json()["text"])
 
     def test_process_ofx_endpoint_success(self):
         from unittest.mock import MagicMock
+
         original_handler = self.app_module.transaction_handler
         self.app_module.transaction_handler = MagicMock()
-        self.app_module.transaction_handler.process_nubank_ofx.return_value = {'status': 'success', 'processed': 1}
+        self.app_module.transaction_handler.process_nubank_ofx.return_value = {
+            "status": "success",
+            "processed": 1,
+        }
 
         try:
-            res = self.client.post('/transactions/ofx', json={'file': 'SGVsbG8gd29ybGQ='})
+            res = self.client.post(
+                "/transactions/ofx", json={"file": "SGVsbG8gd29ybGQ="}
+            )
             self.assertEqual(res.status_code, 201)
-            self.assertEqual(res.get_json(), {'status': 'success', 'processed': 1})
+            self.assertEqual(res.get_json(), {"status": "success", "processed": 1})
 
-            call_arg = self.app_module.transaction_handler.process_nubank_ofx.call_args[0][0]
-            self.assertEqual(call_arg.read(), b'Hello world')
+            call_arg = self.app_module.transaction_handler.process_nubank_ofx.call_args[
+                0
+            ][0]
+            self.assertEqual(call_arg.read(), b"Hello world")
         finally:
             self.app_module.transaction_handler = original_handler
 
     def test_process_ofx_endpoint_missing_file_field(self):
-        res = self.client.post('/transactions/ofx', json={})
+        res = self.client.post("/transactions/ofx", json={})
         self.assertEqual(res.status_code, 400)
-        self.assertEqual(res.get_json()['status'], 'error')
-        self.assertIn('No file in request body', res.get_json()['text'])
+        self.assertEqual(res.get_json()["status"], "error")
+        self.assertIn("No file in request body", res.get_json()["text"])
 
 
 if __name__ == "__main__":

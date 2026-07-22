@@ -3,4 +3,4 @@ class Message:
         self.text = 0
 
     def get_cols_select(self):
-        return "\"text\""
+        return '"text"'
